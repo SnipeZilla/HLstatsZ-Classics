@@ -115,7 +115,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         SourceBans.Init(Config, Logger);
         SourceBans.serverAddr = serverAddr;
         _ = SourceBans.GetSid();
-        SourceBans.PrimeConnectedAdmins();
+
+        if (hotReload)
+        {
+            SourceBans.PrimeConnectedAdmins();
+        }
+
         SourceBans._cleanupTimer?.Kill();
         if (SourceBans._enabled)
             SourceBans._cleanupTimer = new GameTimer(60.0f,
