@@ -335,6 +335,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (HLstatsZ._enabled)
             {
                 builder.Add("Rank", p => _ = SendLog(p, "rank", "say"));
+                builder.Add("Next Rank", p => _ = SendLog(p, "next", "say"));
                 builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
             }
             if (SourceBans._enabled &&
@@ -421,7 +422,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (cmd == "say" && !string.IsNullOrWhiteSpace(args))
         {
             if (!string.IsNullOrWhiteSpace(args))
-                SendChatToAll($"[HLstatsZ.HLZ] {args}");
+                SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {args}");
             return HookResult.Handled;
         }
 

@@ -3,7 +3,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
-//using System.Threading;
 using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using System;
@@ -142,7 +141,7 @@ public class SourceBans
             using (var banCmd = new MySqlCommand($@"
                 SELECT ends, RemovedOn
                 FROM `{_prefix}_bans`
-                WHERE (authid IN (@s0, @s1, @s64) OR ip = @ip)
+                WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
                   AND RemovedOn = 0
                   AND (created = ends OR ends > UNIX_TIMESTAMP())
                 ORDER BY ends DESC

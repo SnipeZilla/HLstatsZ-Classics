@@ -121,18 +121,12 @@ public class HLZMenuManager
                       $"<font color='#FFFACD'> (Page {page + 1}/{totalPages})</font><br>";
 
         var options = new List<(string, Action<CCSPlayerController>)>();
-        //var MaxL = 0;
-        //for (int i = 0; i < displayLines.Length; i++)
-        //{
-        //    var cleanLine = displayLines[i].Trim();
-        //    MaxL = Math.Max(MaxL, cleanLine.Length);
-        //}
 
         for (int i = 0; i < displayLines.Length; i++)
         {
             //var cleanLine = Regex.Replace(displayLines[i], @"^!\d+\s*", "").Trim();
             var cleanLine = displayLines[i].Trim();
-            if (heading == "Top Players")
+            if (heading == "Top Players" || heading == "Next Players")
             {
                 var match = Regex.Match(cleanLine, @"^(?<num>\d{2})\s+(?<rest>.+)$");
                 if (match.Success)
@@ -156,8 +150,6 @@ public class HLZMenuManager
                 if (i == _selectedIndex[player.SteamID])
                    _selectedIndex[player.SteamID]++;
             }
-
-            //cleanLine += Nbsp(MaxL - cleanLine.Length);
 
             main += (i == _selectedIndex[steamId]
                 ? $"<font color='#00FF00'>⫸ {cleanLine} ⫷</font><br>"
