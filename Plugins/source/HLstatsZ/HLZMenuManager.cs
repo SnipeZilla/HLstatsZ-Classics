@@ -12,14 +12,15 @@ namespace HLstatsZ;
 public class HLZMenuManager
 {
     private readonly BasePlugin _plugin;
-    public CCSPlayerController player { get; set; } = null!;
+    //public CCSPlayerController player { get; set; } = null!;
 
     private readonly Dictionary<ulong, int> _menuPages = new();
     private readonly Dictionary<ulong, int> _selectedIndex = new();
     private readonly Dictionary<ulong, List<(string Text, Action<CCSPlayerController> Callback)>> _pageOptions = new();
-    public readonly Dictionary<ulong, CenterHtmlMenu> _activeMenus = new();
-    public string Nbsp(int n) => new string('\u00A0', n);
+    //public readonly Dictionary<ulong, CenterHtmlMenu> _activeMenus = new();
+    public readonly Dictionary<ulong, (CCSPlayerController Player, CenterHtmlMenu Menu)> _activeMenus = new();
 
+    public string Nbsp(int n) => new string('\u00A0', n);
     private string _lastContent = "";
     private List<string[]>? _lastPages;
 
@@ -181,7 +182,7 @@ public class HLZMenuManager
         _pageOptions[steamId] = options;
 
         var menu = new CenterHtmlMenu(main, _plugin) { ExitButton = false };
-        _activeMenus[steamId] = menu;
+        _activeMenus[steamId] = (player, menu);
         menu.Open(player);
         player.Freeze();
     }

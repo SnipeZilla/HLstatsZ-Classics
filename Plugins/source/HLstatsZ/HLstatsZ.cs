@@ -118,7 +118,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (hotReload)
         {
-            SourceBans.PrimeConnectedAdmins();
+            foreach (var player in Utilities.GetPlayers())
+            {
+                if (player?.IsValid == true && player?.IsBot == false)
+                {
+                    _ = SourceBans.isAdmin(player);
+                }
+            }
         }
 
         SourceBans._cleanupTimer?.Kill();
@@ -277,14 +283,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
     {
-        message = message.Replace(
-            "HLstatsZ",
-            "<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        message = message.Replace(
-            "HLstatsX:CE",
-            "<font color='#FFFFFF'>HLstats</font><font color='#3AA0FF'>X</font><font color='#FFFFFF'>:CE</font>");
+        string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
+        string messageCHAT = message.Replace("HLstatsZ", "HLstats{ChatColors.Red}Z{ChatColors.Default}");
 
-        string htmlContent = $"<font color='#FFFFFF'>{message}</font>";
+        string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
 
         var menu = new CenterHtmlMenu(htmlContent, this)
         {
@@ -292,14 +294,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         };
 
         foreach (var p in Utilities.GetPlayers())
-            if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
-                menu.Open(p!);
+        {
+            if (p?.IsValid == true && p?.IsBot == false)
+            {
+                if (!_menuManager._activeMenus.ContainsKey(p.SteamID))
+                {
+                    menu.Open(p);
+                } else {
+                    p.PrintToChat($"{messageCHAT}");
+                }
+            }
+        }
 
         _ = new GameTimer(durationInSeconds, () =>
         {
             foreach (var p in Utilities.GetPlayers())
-                if (p?.IsValid == true && !_menuManager._activeMenus.TryGetValue(p.SteamID, out var mmenu))
-                    MenuManager.CloseActiveMenu(p!);
+            {
+                if (p?.IsValid == true && p?.IsBot == false && !_menuManager._activeMenus.ContainsKey(p.SteamID))
+                    MenuManager.CloseActiveMenu(p);
+            }
         });
     }
 
@@ -578,22 +591,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     }
 
     // --------------------- Menu ---------------------
-    private const int PollInterval = 2; 
-    private int _tickCounter;
+    //private const int PollInterval = 2; 
+    //private int _tickCounter;
     private readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
 
-    private void OnTick() {
-        if (_menuManager._activeMenus.Count == 0) return;
-        if (++_tickCounter % PollInterval != 0)
-            return;
-        foreach (var player in Utilities.GetPlayers())
+    private void OnTick()
+   {
+        //if (++_tickCounter % PollInterval != 0) return;
+        foreach (var kvp in _menuManager._activeMenus.ToList())
         {
-            if (!_menuManager._activeMenus.TryGetValue(player.SteamID, out var menu)) continue;
-            var steamId = player.SteamID;
+
+            var steamId = kvp.Key;
+            var (player, menu) = kvp.Value;
+
             if (player == null || !player.IsValid)
             {
                 _menuManager.DestroyMenu(player!);
-                _lastButtons.Remove(steamId);
                 continue;
             }
             var current = player.Buttons;

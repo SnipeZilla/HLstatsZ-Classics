@@ -496,18 +496,6 @@ public class SourceBans
         }
     }
 
-
-    public static void PrimeConnectedAdmins()
-    {
-        foreach (var player in Utilities.GetPlayers())
-        {
-            if (player?.IsValid == true)
-            {
-                _ = isAdmin(player);
-            }
-        }
-    }
-
     public static string FormatTimeLeft(TimeSpan timeLeft)
     {
         if (timeLeft.TotalSeconds < 1)
