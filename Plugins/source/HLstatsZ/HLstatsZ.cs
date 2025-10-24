@@ -68,7 +68,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         => s.Length > max ? s.Substring(0, Math.Max(0, max - 3)) + "..." : s;
 
     private string? _lastPsayHash;
-    public override string ModuleName => "HLstatsZ";
+    public override string ModuleName => "HLstatsZ Classics";
     public override string ModuleVersion => "2.0.0";
     public override string ModuleAuthor => "SnipeZilla";
 
@@ -342,6 +342,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var cmd = parts[0].ToLowerInvariant();
         var args  = parts.Length > 1 ? parts[1].Trim() : "";
 
+        bool voteban = (SourceBans.VoteBan == "public" || (SourceBans.VoteBan == "admin" && userData.IsAdmin));
+        bool votemap = (SourceBans.VoteMap == "public" || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
+
         // ---- Handle Public Command ----
         if ((cmd == "menu" || cmd == "hlx_menu") && parts.Length == 1)
         {
@@ -356,9 +359,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 builder.Add("Next Rank", p => _ = SendLog(p, "next", "say"));
                 builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
             }
-            if (SourceBans._enabled &&
-               (SourceBans.MakeVote(userData.IsAdmin,Config.SourceBans.VoteBan) ||
-                SourceBans.MakeVote(userData.IsAdmin,Config.SourceBans.VoteMap)))
+            if (SourceBans._enabled && (voteban || votemap))
                 builder.Add("Vote", p => VoteMenu(p));
 
             if (userData.IsAdmin)
@@ -369,7 +370,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
         }
 
-        // ---- HLstatsZ: Send log to Daemon ----
+        // ---- HLstatsZ -> Daemon ----
         var Cmds = new[] {"top10","rank","session","weaponstats","accuracy","next","clans"};
 
         if (silenced && parts.Length == 1 && (Cmds.Contains(cmd, StringComparer.OrdinalIgnoreCase) || Regex.IsMatch(cmd, @"^top\d{1,2}$", RegexOptions.CultureInvariant)))
@@ -388,10 +389,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         // ----SourceBans Commands----
         if (cmd == "votemap" && prefixed)
         {
-            if (SourceBans.MakeVote(userData.IsAdmin,Config.SourceBans.VoteMap))
+            if (!votemap)
             {
                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
-                return HookResult.Handled;
+                return HookResult.Continue;
             }
             if (parts.Length == 1)
             {
@@ -405,10 +406,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (cmd == "votekick" && prefixed)
         {
-            if (SourceBans.MakeVote(userData.IsAdmin,Config.SourceBans.VoteBan))
+            if (!voteban)
             {
                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
-                return HookResult.Handled;
+                return HookResult.Continue;
             }
             if (parts.Length == 1)
             {
@@ -591,16 +592,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     }
 
     // --------------------- Menu ---------------------
-    //private const int PollInterval = 2; 
-    //private int _tickCounter;
-    private readonly Dictionary<ulong, PlayerButtons> _lastButtons = new();
+    private const int PollInterval = 6; // 4~80ms 6~120ms
+    private int _tickCounter = 0;
 
     private void OnTick()
    {
-        //if (++_tickCounter % PollInterval != 0) return;
+        if (_menuManager._activeMenus.Count == 0) return;
+        if (++_tickCounter % PollInterval != 0) return;
+        _tickCounter=0;
+
         foreach (var kvp in _menuManager._activeMenus.ToList())
         {
-
             var steamId = kvp.Key;
             var (player, menu) = kvp.Value;
 
@@ -610,37 +612,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 continue;
             }
             var current = player.Buttons;
-            var last = _lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
+            var last = _menuManager._lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
 
             if (current.HasFlag(PlayerButtons.Forward) && !last.HasFlag(PlayerButtons.Forward))
-                HandleWasdPress(player, "W");
+                _menuManager.HandleWasdPress(player, "W");
 
             if (current.HasFlag(PlayerButtons.Back) && !last.HasFlag(PlayerButtons.Back))
-                HandleWasdPress(player, "S");
+                _menuManager.HandleWasdPress(player, "S");
 
             if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
-                HandleWasdPress(player, "A");
+                _menuManager.HandleWasdPress(player, "A");
 
             if (current.HasFlag(PlayerButtons.Moveright) && !last.HasFlag(PlayerButtons.Moveright))
-                HandleWasdPress(player, "D");
+                _menuManager.HandleWasdPress(player, "D");
 
             if (current.HasFlag(PlayerButtons.Use) && !last.HasFlag(PlayerButtons.Use))
-                HandleWasdPress(player, "E");
+                _menuManager.HandleWasdPress(player, "E");
 
-            _lastButtons[steamId] = current;
+            _menuManager._lastButtons[steamId] = current;
 
-        }
-    }
-
-    private void HandleWasdPress(CCSPlayerController player, string key)
-    {
-        switch (key)
-        {
-            case "W": _menuManager.HandleNavigation(player,-1); break;
-            case "S": _menuManager.HandleNavigation(player,+1); break;
-            case "A": _menuManager.HandleBack(player); break;
-            case "D": _menuManager.HandlePage(player,+1); break;
-            case "E": _menuManager.HandleSelect(player); break;
         }
     }
 
@@ -649,38 +639,39 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (!SourceBans._enabled || player == null || !player.IsValid)
             return;
 
+        SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        bool votemap = (SourceBans.VoteMap == "public" || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
+
         var builder = new HLZMenuBuilder("Admin Menu")
                      .Add("Players", _ => AdminPlayer(player))
-                     .Add("Remove Ban (session)", _ => AdminPlayer(player,1))
-                     .Add("Map Change", _ => MapMenu(player));
+                     .Add("Remove Ban (session)", _ => AdminPlayer(player,1));
+        if (votemap)
+            builder.Add("Map Change", _ => MapMenu(player));
         builder.Open(player, Instance!._menuManager);
 
     }
 
     public static void VoteMenu(CCSPlayerController player)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
-            return;
+        if (!SourceBans._enabled || player == null || !player.IsValid) return;
 
         SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        bool voteban = (SourceBans.VoteBan == "public" || (SourceBans.VoteBan == "admin" && userData.IsAdmin));
+        bool votemap = (SourceBans.VoteMap == "public" || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
 
         var builder = new HLZMenuBuilder("Vote Menu");
-            if (!SourceBans._vote.ContainsKey("kick") &&
-                !SourceBans._vote.ContainsKey("map") &&
-                SourceBans.MakeVote(userData.IsAdmin,Instance!.Config.SourceBans.VoteBan))
-            {
-                builder.Add("Kick player", _ => VotePlayer(player));
-            } else {
-                builder.AddNoOp("Kick player");
-            }
-            if (!SourceBans._vote.ContainsKey("kick") &&
-                !SourceBans._vote.ContainsKey("map") &&
-                SourceBans.MakeVote(userData.IsAdmin,Instance!.Config.SourceBans.VoteMap))
-            {
-                builder.Add("Change Map", _ => VoteMap(player));
-            } else {
-                builder.AddNoOp("Change Map");
-            }
+        if (!SourceBans._vote.ContainsKey("kick") && !SourceBans._vote.ContainsKey("map") && voteban)
+        {
+            builder.Add("Kick player", _ => VotePlayer(player));
+        } else {
+            builder.AddNoOp("Kick player");
+        }
+        if (!SourceBans._vote.ContainsKey("kick") && !SourceBans._vote.ContainsKey("map") && votemap)
+        {
+            builder.Add("Change Map", _ => VoteMap(player));
+        } else {
+            builder.AddNoOp("Change Map");
+        }
         builder.Add("Active Vote", _ => VoteActive("check",player,null,null));
 
         builder.Open(player, Instance!._menuManager);
@@ -688,10 +679,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void VotePlayer(CCSPlayerController player)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
-            return;
+        if (!SourceBans._enabled || player == null || !player.IsValid) return;
+
         var name = "";
-        var builder = new HLZMenuBuilder("Vote Kick").WithoutNumber(); 
+        var builder = new HLZMenuBuilder("Vote Kick");
         foreach (var target in Utilities.GetPlayers())
         {
             name = Instance?.Trunc(target.PlayerName, 20);
@@ -707,7 +698,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return;
         var maps = SourceBans.GetAvailableMaps(Instance!.Config, false);
 
-        var builder = new HLZMenuBuilder("Vote Map"); 
+        var builder = new HLZMenuBuilder("Vote Map");
         foreach (var entry in maps)
         {
             string label = entry.IsSteamWorkshop ? $"[WS] {entry.DisplayName}" : entry.DisplayName;
@@ -747,7 +738,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         if (!SourceBans._enabled || player == null || !player.IsValid)
             return;
-        var builder = new HLZMenuBuilder("Vote Menu").WithoutNumber();
+        string title = type == "check" ? "Vote Menu" : "Cast Vote";
+        var builder = new HLZMenuBuilder(title).NoNumber();
 
         if (type == "kick" || (SourceBans._vote.ContainsKey("kick") && type == "check"))
             BuildVoteKickMenu(builder, player, target);
@@ -812,7 +804,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return;
 
         var title = type == 0 ? "Admin Players" : "Admin Unban";
-        var builder = new HLZMenuBuilder($"{title}").WithoutNumber();
+        var builder = new HLZMenuBuilder($"{title}").NoNumber();
         var count =0;
         var name = "";
         var label = "";

@@ -26,6 +26,8 @@ public class SourceBans
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
     public static string serverAddr = "";
     public static int serverID = 0;
+    public static string VoteBan = "";
+    public static string VoteMap = "";
 
     public enum BanType
     {
@@ -42,6 +44,9 @@ public class SourceBans
         _logger = logger;
 
         var sb = cfg.SourceBans;
+        VoteBan = sb.VoteBan ?? "none";
+        VoteMap = sb.VoteMap ?? "none";
+
         if (string.IsNullOrWhiteSpace(sb.Database) || string.IsNullOrWhiteSpace(sb.Host) ||
             string.IsNullOrWhiteSpace(sb.User) || string.IsNullOrWhiteSpace(sb.Prefix) || cfg.sb == "no")
         {
@@ -543,11 +548,6 @@ public class SourceBans
             MathF.Max(0.01f, delaySeconds),
             () => Server.ExecuteCommand(command)
         );
-    }
-
-    public static bool MakeVote(bool isAdmin,string vote)
-    {
-        return (vote=="public" || (vote=="admin" && isAdmin));
     }
 
     public static void StartVoteTimer()
