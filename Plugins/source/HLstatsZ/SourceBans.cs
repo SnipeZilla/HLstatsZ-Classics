@@ -654,5 +654,40 @@ public class SourceBans
         return true;
     }
 
+    public static void CameraCommand(CCSPlayerController admin, int d = 1)
+    {
+        if (admin == null || !admin.IsValid) return;
+
+        // Group by IP
+        var groups = _userCache
+            .GroupBy(kvp => kvp.Value.Item3)
+            .Where(g => g.Count() > d)
+            .ToList();
+
+        if (groups.Count == 0)
+        {
+            admin.PrintToConsole("[HLstatsZ] No duplicate IPs found.");
+            return;
+        }
+
+        admin.PrintToConsole("[HLstatsZ] Duplicate IP report:");
+        foreach (var g in groups)
+        {
+            admin.PrintToConsole($"IP: {g.Key} ({g.Count()} players)");
+            foreach (var (sid64, tuple) in g)
+            {
+                var target = HLstatsZ.FindTarget(sid64);
+                var Name = "UnKnown, player left";
+                var Team = "None";
+                if (target != null && target.IsValid)
+                {
+                    Name = target.PlayerName;
+                    Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
+                }
+                var (_, aid, ip, seen, _, _, _) = tuple;
+                admin.PrintToConsole($"  -> {Name}  {Team}, SID64={sid64}, AID={aid}, LastSeen={seen:u}");
+            }
+        }
+    }
 
 }
