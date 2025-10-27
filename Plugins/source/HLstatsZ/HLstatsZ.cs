@@ -1312,7 +1312,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             break;
             case "team":
                 if (target == null || !target.IsValid) return false;
-                SendPrivateChat(admin,"{number}");
                 CsTeam csTeam;
                 switch ((TeamNum)number)
                 {
