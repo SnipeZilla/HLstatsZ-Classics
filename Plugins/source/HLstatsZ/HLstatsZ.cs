@@ -85,7 +85,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         _enabled = true;
     }
 
-    private HLZMenuManager _menuManager = null!;
+    public HLZMenuManager _menuManager = null!;
 
     public override void Load(bool hotReload)
     {
@@ -423,7 +423,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Continue;
 
         // ---- Handle Gag ----
-        if ((userData.Ban & SourceBans.BanType.Gag)>0) return HookResult.Handled;
+        if ((userData.Ban & BanType.Gag)>0) return HookResult.Handled;
 
         // ----SourceBans Commands----
         if (cmd == "votemap" && prefixed)
@@ -476,6 +476,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         // ---- Handle Admin command ----
         if (!userData.IsAdmin || !prefixed) return HookResult.Continue;
+        var adminFlags = userData.Flags.ToFlags();
 
         if (cmd == "say" && !string.IsNullOrWhiteSpace(args))
         {
@@ -492,6 +493,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (cmd == "kick")
         {
+
+            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Kick)))
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                return HookResult.Handled;
+            }
+
             if (parts.Length == 1)
             {
                 AdminPlayer(player);
@@ -516,8 +524,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
         }
 
-        if (cmd == "map" && Config.SourceBans.VoteMap == "admin")
+        if (cmd == "map")
         {
+            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Map)))
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                return HookResult.Handled;
+            }
+
             if (parts.Length == 1)
             {
                 MapMenu(player);
@@ -531,6 +545,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if ((cmd == "ban" || cmd == "gag" || cmd == "mute" || cmd == "silence") ||
             (cmd == "unban" || cmd == "ungag" || cmd == "unmute" || cmd == "unsilence"))
         {
+            if ((cmd == "ban" && !(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Ban))) ||
+           (cmd == "unban" && !(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Unban))))
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                return HookResult.Handled;
+            }
+
             var reason = parts.Length >= 4 ? (" (" + parts[3] + ")") : "";
             var length = parts.Length >= 2 ?  parts[2] : "";
             if (parts.Length < 3 || !(int.TryParse(length, out int min) && min >= 0)) 
@@ -553,6 +574,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (cmd == "slay")
         {
+            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Slay)))
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                return HookResult.Handled;
+            }
+
             if (parts.Length == 1)
             {
                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name>, or type !menu");
@@ -582,49 +609,47 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
              var team  = 0;
              switch (tname)
              {
-                 case "1":
-                 case "s":
-                 case "spec":
-                 case "spectator":
-                     team = 1;
-                     tname = "Spectator";
-                 break;
-                 case "2":
-                 case "t":
-                 case "tt":
-                 case "terrorist":
-                     team = 2;
-                     tname = "Terrorist";
-                 break;
-                 case "3":
-                 case "ct":
-                 case "counter-terrorist":
-                 case "counterterrorist":
-                     team = 3;
-                     tname = "Counter-Terrorist";
-                 break;
-                 default:
-                     SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Team {team} doesn't exist, use !menu");
-                 return HookResult.Handled;
-             }
-             var who    = args;
-             var target = FindTarget(who);
-             if (target != null && target.IsValid)
-             {
-                 AdminAction(player,cmd,target,tname,team);
-             }
-             else
-             {
+                case "1":
+                case "s":
+                case "spec":
+                case "spectator":
+                    team = 1;
+                    tname = "Spectator";
+                break;
+                case "2":
+                case "t":
+                case "tt":
+                case "terrorist":
+                    team = 2;
+                    tname = "Terrorist";
+                break;
+                case "3":
+                case "ct":
+                case "counter-terrorist":
+                case "counterterrorist":
+                    team = 3;
+                    tname = "Counter-Terrorist";
+                break;
+                default:
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Team {tname} doesn't exist, use !menu");
+                return HookResult.Handled;
+            }
+            var who    = args;
+            var target = FindTarget(who);
+            if (target != null && target.IsValid)
+            {
+                AdminAction(player,cmd,target,tname,team);
+            } else {
                  SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
-             }
-             return HookResult.Handled;
-         }
-    if (cmd == "camera")
-    {
-        int d = args == "-d" ? 1 : 0;
-        SourceBans.CameraCommand(player, d);
-        return HookResult.Handled;
-    }
+            }
+            return HookResult.Handled;
+        }
+        if (cmd == "camera")
+        {
+            int d = args == "-d" ? 1 : 0;
+            SourceBans.CameraCommand(player, d);
+            return HookResult.Handled;
+        }
         return HookResult.Continue;
     }
 
@@ -785,6 +810,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (votemap)
                 builder.AddNoOp("Change Map");
         }
+        if (!SourceBans._vote.ContainsKey("kick") && !SourceBans._vote.ContainsKey("map") && votemap)
+        {
+            builder.Add("Rock The Vote", _ => AdminConfirm(player,player,"rtv"));
+        } else {
+            if (votemap)
+                builder.AddNoOp("Rock The Vote");
+        }
         builder.Add("Active Vote", _ => VoteActive("check",player,null,null));
 
         builder.Open(player, Instance!._menuManager);
@@ -821,27 +853,44 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         builder.Open(player, Instance!._menuManager);
     }
 
-    public static void AddVote(string type, CCSPlayerController player, bool yes)
+    public static void AddVote(string type, CCSPlayerController player, bool yes, string? mapName = null, int? choiceIndex = null)
     {
-        if (!SourceBans._vote.ContainsKey(type)) {
+        if (!SourceBans._vote.ContainsKey(type))
+        {
             Instance!._menuManager.DestroyMenu(player);
             return;
         }
 
-        if (!SourceBans._userVote.ContainsKey(type)) SourceBans._userVote[type] = new();
+        if (!SourceBans._userVote.ContainsKey(type))
+            SourceBans._userVote[type] = new();
 
         var vote = SourceBans._vote[type];
         var userVotes = SourceBans._userVote[type];
         ulong sid = player.SteamID;
+        bool isRtv = SourceBans._rtv.Count > 0;
 
-        if (userVotes.TryGetValue(sid, out int previous))
+        if (isRtv)
         {
-            if (previous == 1) vote.YES--;
-            else vote.NO--;
+            if (choiceIndex == null || choiceIndex < 0 || choiceIndex >= SourceBans._rtv.Count)
+            {
+                player.PrintToChat("[HLstatsZ] Invalid map choice.");
+                return;
+            }
+            userVotes[sid] = choiceIndex.Value;
+            vote.MapName = SourceBans._rtv[choiceIndex.Value].MapName;
         }
-
-        userVotes[sid] = yes ? 1 : 0;
-        if (yes) vote.YES++; else vote.NO++;
+        else
+        {
+            if (userVotes.TryGetValue(sid, out int previous))
+            {
+                if (previous == 1) vote.YES--;
+                else vote.NO--;
+            }
+    
+            userVotes[sid] = yes ? 1 : 0;
+            if (yes) vote.YES++;
+            else vote.NO++;
+        }
 
         SourceBans._vote[type] = vote;
         Instance!._menuManager.DestroyMenu(player);
@@ -857,8 +906,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (type == "kick" || (SourceBans._vote.ContainsKey("kick") && type == "check"))
             BuildVoteKickMenu(builder, player, target);
 
-        if (type == "map" || (SourceBans._vote.ContainsKey("map") && type == "check"))
+        if (type == "map" || (SourceBans._vote.ContainsKey("map") && type == "check" && SourceBans._rtv.Count == 0))
             BuildVoteMapMenu(builder, player, mapname);
+
+        if (type == "rtv" || (SourceBans._vote.ContainsKey("map") && type == "check" && SourceBans._rtv.Count > 0))
+            BuildVoteRtvMenu(builder, player);
 
         if (!SourceBans._vote.ContainsKey("kick") && !SourceBans._vote.ContainsKey("map"))
             builder.AddNoOp("There is no active vote");
@@ -891,6 +943,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (SourceBans._vote.TryGetValue("map", out var result))
             builder.AddNoOp($"YES: {result.YES}. NO: {result.NO}");
+    }
+
+    private static void BuildVoteRtvMenu(HLZMenuBuilder builder, CCSPlayerController player)
+    {
+        if (!SourceBans._userVote.TryGetValue("map", out var userVotes))
+        {
+            SourceBans._userVote["map"] = new();
+            userVotes = SourceBans._userVote["map"];
+        }
+        var tally = userVotes.Values
+                             .GroupBy(c => c)
+                             .ToDictionary(g => g.Key, g => g.Count());
+         for (int i = 0; i < SourceBans._rtv.Count; i++)
+        {
+            int choiceIndex = i;
+            var mapEntry = SourceBans._rtv[choiceIndex];
+
+            int count = tally.TryGetValue(i, out var c) ? c : 0;
+            string label = mapEntry.IsSteamWorkshop ? $"[WS] {mapEntry.DisplayName} → {count}" : $"{mapEntry.DisplayName} → {count}";
+            builder.Add(label, _ => AddVote("map", player, true, mapEntry.DisplayName, choiceIndex));
+        }
     }
 
     public static void MapMenu(CCSPlayerController player)
@@ -935,16 +1008,16 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             switch (type)
             {
                 case 0:
-                    if ((userData.Ban & (SourceBans.BanType.Kick | SourceBans.BanType.Ban))>0) continue;
+                    if ((userData.Ban & (BanType.Kick | BanType.Ban))>0) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"#{target.Slot} - {name}";
                     //if (player != target)
                         builder.Add(label, _ => AdminCMD(player, target));
                     //else
-                        //builder.AddNoOp(label);
+                       // builder.AddNoOp(label);
                 break;
                 case 1:
-                    if ((userData.Ban ^ SourceBans.BanType.None)==0) continue;
+                    if ((userData.Ban ^ BanType.None)==0) continue;
                     count++;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"{target.Slot} - {name}";
@@ -967,17 +1040,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         var name = Instance?.Trunc(target.PlayerName,10);
         var builder = new HLZMenuBuilder($"{name}");
+        SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        var adminFlags = userData.Flags.ToFlags();
 
         if (!target.IsBot) {
-            builder.Add("Ban", _ => AdminCMD1(player,target,"Ban"));
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Kick | AdminFlags.Ban))
+                builder.Add("Kick/Ban", _ => AdminCMD1(player,target,"Ban"));
             builder.Add("Gag (Disable Chat)", _ => AdminCMD1(player,target,"Gag"));
             builder.Add("Mute (Disable Voice)", _ => AdminCMD1(player,target,"Mute"));
             builder.Add("Silence (Disable Voice/Chat", _ => AdminCMD1(player,target,"Silence"));
-            builder.Add("Slay", _ => AdminConfirm(player,target,"Slay"));
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Slay))
+                builder.Add("Slay", _ => AdminConfirm(player,target,"Slay"));
             if (target.TeamNum > 0)
                 builder.Add("Change Team", _ => AdminCMD1(player,target,"team"));
         } else {
-            builder.Add("Kick", _ => AdminConfirm(player,target,"kick"));
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Kick | AdminFlags.Ban))
+                builder.Add("Kick", _ => AdminConfirm(player,target,"kick"));
         }
         builder.Open(player, Instance!._menuManager);
 
@@ -990,6 +1068,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         var name = Instance?.Trunc(target.PlayerName,10);
         var builder = new HLZMenuBuilder($"{name}");
+        SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        var adminFlags = userData.Flags.ToFlags();
 
         if (cmd == "team")
         {
@@ -1001,12 +1081,16 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 builder.Add($"Spectator", _ => AdminConfirm(player,target,$"team 1"));
 
         } else {
-            builder.Add("Kick", _ => AdminConfirm(player,target,"kick"));
-            builder.Add($"{cmd} 15 minutes", _ => AdminConfirm(player,target,$"{cmd} 900"));
-            builder.Add($"{cmd} 30 minutes", _ => AdminConfirm(player,target,$"{cmd} 1800"));
-            builder.Add($"{cmd} 60 minutes", _ => AdminConfirm(player,target,$"{cmd} 3600"));
-            builder.Add($"{cmd} 24 hours", _ => AdminConfirm(player,target,$"{cmd} 1440"));
-            builder.Add($"{cmd} permanently", _ => AdminConfirm(player,target,$"{cmd} 0"));
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Kick))
+                builder.Add("Kick", _ => AdminConfirm(player,target,"kick"));
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Ban))
+            {
+                builder.Add($"{cmd} 15 minutes", _ => AdminConfirm(player,target,$"{cmd} 900"));
+                builder.Add($"{cmd} 30 minutes", _ => AdminConfirm(player,target,$"{cmd} 1800"));
+                builder.Add($"{cmd} 60 minutes", _ => AdminConfirm(player,target,$"{cmd} 3600"));
+                builder.Add($"{cmd} 24 hours", _ => AdminConfirm(player,target,$"{cmd} 1440"));
+                builder.Add($"{cmd} permanently", _ => AdminConfirm(player,target,$"{cmd} 0"));
+            }
         }
         builder.Open(player, Instance!._menuManager);
     }
@@ -1019,24 +1103,39 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var name = Instance?.Trunc(target.PlayerName,10);
         var builder = new HLZMenuBuilder($"{name}");
         SourceBans._userCache.TryGetValue(target.SteamID, out var targetData);
+        SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        var adminFlags = userData.Flags.ToFlags();
         DateTime now = DateTime.UtcNow; //DateTime.MaxValue
-        if ((targetData.Ban & SourceBans.BanType.Kick)>0) {
+
+        if ((targetData.Ban & BanType.Kick)>0) {
             var remaining = targetData.ExpiryBan == DateTime.MaxValue ? "permanently" : SourceBans.FormatTimeLeft(targetData.ExpiryBan-now);
-            builder.Add($"Remove Kick ({remaining})", _ => AdminConfirm(player,target,"unkick"));
+            var label = $"Remove Kick ({remaining})";
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
+            {
+                builder.Add(label, _ => AdminConfirm(player,target,"unkick"));
+            } else {
+                builder.AddNoOp(label);
+            }
         }
-        if ((targetData.Ban & SourceBans.BanType.Ban)>0) {
+        if ((targetData.Ban & BanType.Ban)>0) {
             var remaining = targetData.ExpiryBan == DateTime.MaxValue ? "permanently" : SourceBans.FormatTimeLeft(targetData.ExpiryBan-now);
-            builder.Add($"Remove Ban ({remaining})", _ => AdminConfirm(player,target,"unban"));
+            var label = $"Remove Ban ({remaining})";
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
+            {
+                builder.Add(label, _ => AdminConfirm(player,target,"unban"));
+            } else {
+                builder.AddNoOp(label);
+            }
         }
-        if ((targetData.Ban & SourceBans.BanType.Gag)>0) {
+        if ((targetData.Ban & BanType.Gag)>0) {
             var remaining = targetData.ExpiryBan == DateTime.MaxValue ? "permanently" : SourceBans.FormatTimeLeft(targetData.ExpiryComm - now);
             builder.Add($"Remove Gag ({remaining})", _ => AdminConfirm(player,target,"ungag"));
         }
-        if ((targetData.Ban & SourceBans.BanType.Mute)>0) {
+        if ((targetData.Ban & BanType.Mute)>0) {
             var remaining = targetData.ExpiryBan == DateTime.MaxValue ? "permanently" : SourceBans.FormatTimeLeft(targetData.ExpiryComm-now);
             builder.Add($"Remove Mute ({remaining})", _ => AdminConfirm(player,target,"unmute"));
         }
-        if ((targetData.Ban & SourceBans.BanType.Gag)>0 && (targetData.Ban & SourceBans.BanType.Mute)>0) {
+        if ((targetData.Ban & BanType.Gag)>0 && (targetData.Ban & BanType.Mute)>0) {
             var remaining = targetData.ExpiryBan == DateTime.MaxValue ? "permanently" : SourceBans.FormatTimeLeft(targetData.ExpiryComm-now);
             builder.Add($"Remove Silence ({remaining})", _ => AdminConfirm(player,target,"unsilence"));
         }
@@ -1099,18 +1198,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         };
     }
 
-    public static string Green(string text)
-    {
-        return $"{ChatColors.Green}{text}{ChatColors.Default}";
-    }
-
     public static bool AdminAction(CCSPlayerController admin,string action, CCSPlayerController? target, string? args, int number = 0)
     {
         if (admin == null || !admin.IsValid) return false;
         var cmd     = action.Trim().ToLowerInvariant();
         var reason  = (args ?? "").Trim();
         var message = "";
-        var type    = SourceBans.BanType.None;
+        var type    = BanType.None;
         var page    = 0;
         int min     = 1;
         if (string.IsNullOrEmpty(reason))
@@ -1121,7 +1215,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "kick":
                 if (target == null || !target.IsValid) return false;
                 SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
-                SourceBans.UpdateBanUser(target, SourceBans.BanType.Kick, DateTime.UtcNow.AddMinutes(2));
+                SourceBans.UpdateBanUser(target, BanType.Kick, DateTime.UtcNow.AddMinutes(2));
                 message = ActionMessage(admin, cmd, target,reason);
                 SendChatToAll(message);
             break;
@@ -1129,7 +1223,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (target == null || !target.IsValid) return false;
                 if (SourceBans._vote.ContainsKey("kick"))
                 {
-                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {Green("!menu")} to access the current vote");
+                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {ChatColors.Green}!menu{ChatColors.Default} to access the current vote");
                     return false;
                 }
                 min = Utilities.GetPlayers().Count(p => p != null && p.IsValid && !p.IsBot);
@@ -1146,9 +1240,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "mute":
             case "silence":
                 if (target == null || !target.IsValid) return false;
-                type = cmd == "ban" ? SourceBans.BanType.Ban :
-                       cmd == "gag" ? SourceBans.BanType.Gag :
-                       cmd == "mute" ? SourceBans.BanType.Mute : SourceBans.BanType.Silence;
+                type = cmd == "ban" ? BanType.Ban :
+                       cmd == "gag" ? BanType.Gag :
+                       cmd == "mute" ? BanType.Mute : BanType.Silence;
                 if (cmd == "mute" || cmd == "silence")
                     target.VoiceFlags = VoiceFlags.Muted;
                 _ = SourceBans.WriteBan(target, admin, type, number, reason);
@@ -1164,9 +1258,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "unban":
                 page=1;
                 if (target == null || !target.IsValid) return false;
-                type = cmd == "ungag" ? SourceBans.BanType.Gag :
-                       cmd == "unmute" ? SourceBans.BanType.Mute :
-                       cmd == "unsilence" ?  SourceBans.BanType.Silence : SourceBans.BanType.Ban;
+                type = cmd == "ungag" ? BanType.Gag :
+                       cmd == "unmute" ? BanType.Mute :
+                       cmd == "unsilence" ?  BanType.Silence : BanType.Ban;
                 if (cmd == "unmute" || cmd == "unsilence")
                     target.VoiceFlags = VoiceFlags.Normal;
                 _ = SourceBans.WriteUnBan(target, admin, type, reason);
@@ -1180,7 +1274,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (args == null) return false;
                 if (cmd == "votemap" && SourceBans._vote.ContainsKey("map"))
                 {
-                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {Green("!menu")} to access the current vote");
+                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {ChatColors.Green}!menu{ChatColors.Default} to access the current vote");
                     return false;
                 }
                 var availableMaps = SourceBans.GetAvailableMaps(Instance!.Config, true);
@@ -1190,7 +1284,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     (m.WorkshopId != null && string.Equals(m.WorkshopId, args, StringComparison.OrdinalIgnoreCase)));
                 if (match == null)
                 {
-                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Map '{Green(args)}' not found in config. Use {Green("!menu")}");
+                    SendPrivateChat(admin, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Map '{ChatColors.Green}{args}{ChatColors.Default}' not found. Use {ChatColors.Green}!menu{ChatColors.Default} for map list");
                     return false;
                 }
                 if (cmd=="votemap") {
@@ -1204,7 +1298,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     SourceBans.StartVoteTimer();
                     return false;
                 }
-                message = $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {TeamColor(admin.TeamNum)}{admin.PlayerName}{ChatColors.Default} changed map to {Green(match.DisplayName)}";
+                message = $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {TeamColor(admin.TeamNum)}{admin.PlayerName}{ChatColors.Default} changed map to {ChatColors.Green}match.DisplayName{ChatColors.Default}";
                 SendChatToAll(message);
                 var command = match.IsSteamWorkshop ? $"host_workshop_map {match.WorkshopId}" :
                                                       $"changelevel {match.MapName}";
@@ -1239,6 +1333,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 message = ActionMessage(admin, cmd, target, "");
                 SendChatToAll(message);
             break;
+            case "rtv":
+                var allMaps = SourceBans.GetAvailableMaps(Instance!.Config, true);
+                string currentMap = Server.MapName;
+                var candidates = allMaps
+                    .Where(m => !string.Equals(m.MapName, currentMap, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (candidates.Count == 0) {
+                    admin.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] No alternative maps available.");
+                    return false;
+                }
+                var rng = new Random();
+                SourceBans._rtv = candidates.OrderBy(_ => rng.Next()).Take(5).ToList();
+                min = Utilities.GetPlayers().Count(p => p != null && p.IsValid && !p.IsBot);
+                SourceBans._vote["map"] = (DateTime.UtcNow, null, admin.PlayerName, null, 0, 0, Math.Max(1,min/2));
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p?.IsValid == true && p?.IsBot == false)
+                        VoteActive("rtv",p,null,args);
+                }
+                SourceBans.StartVoteTimer();
+            return false;
             default:
             break;
         }
@@ -1318,7 +1433,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var userData))
         {
-            if ((userData.Ban & (SourceBans.BanType.Ban | SourceBans.BanType.Kick))>0)
+            if ((userData.Ban & (BanType.Ban | BanType.Kick))>0)
             {
                 DateTime now = DateTime.UtcNow;
                 if (userData.ExpiryBan > now)
@@ -1330,7 +1445,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     return HookResult.Continue;
                 }
             }
-            if ((userData.Ban & (SourceBans.BanType.Mute | SourceBans.BanType.Silence))>0)
+            if ((userData.Ban & (BanType.Mute | BanType.Silence))>0)
             {
                 var timeleft = SourceBans.FormatTimeLeft(userData.ExpiryBan - DateTime.UtcNow);
                 var remain = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
@@ -1346,6 +1461,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var player = @event.Userid;
         if (player != null && player.IsValid)
             _menuManager.DestroyMenu(player);
+        if (player != null && !SourceBans._enabled && SourceBans._userCache.TryGetValue(player.SteamID, out var userData))
+           SourceBans._userCache.Remove(player.SteamID);
         return HookResult.Continue;
     }
 

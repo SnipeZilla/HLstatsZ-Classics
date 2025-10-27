@@ -11,6 +11,59 @@ using System.Text;
 
 namespace HLstatsZ;
 
+public enum BanType
+{
+    None    = 0,
+    Mute    = 1,
+    Gag     = 2,
+    Silence = Mute | Gag,
+    Kick    = 4,
+    Ban     = 8,
+}
+
+public enum AdminFlags
+{
+    None    = 0,
+    Generic = 1 << 0,  // b
+    Kick    = 1 << 1,  // c
+    Ban     = 1 << 2,  // d
+    Unban   = 1 << 3,  // e
+    Slay    = 1 << 4,  // f
+    Map     = 1 << 5,  // g
+    Root    = 1 << 6,  // z
+}
+
+public static class AdminFlagExtensions
+{
+    private static readonly Dictionary<char, AdminFlags> _map = new()
+    {
+        ['b'] = AdminFlags.Generic,
+        ['c'] = AdminFlags.Kick,
+        ['d'] = AdminFlags.Ban,
+        ['e'] = AdminFlags.Unban,
+        ['f'] = AdminFlags.Slay,
+        ['g'] = AdminFlags.Map,
+        ['z'] = AdminFlags.Root,
+    };
+
+    public static AdminFlags ToFlags(this string? flagStr)
+    {
+        if (string.IsNullOrEmpty(flagStr))
+            return AdminFlags.None;
+
+        AdminFlags result = AdminFlags.None;
+        foreach (char c in flagStr)
+        {
+            if (_map.TryGetValue(c, out var flag))
+                result |= flag;
+        }
+        return result;
+    }
+
+    public static bool Has(this AdminFlags flags, AdminFlags check)
+        => (flags & check) != 0;
+}
+
 public class SourceBans
 {
     private static string? _cachedDBH;
@@ -20,24 +73,16 @@ public class SourceBans
     public static GameTimer? _voteTimer;
     public static GameTimer? _DelayedCommand;
     private static ILogger? _logger;
-    public static readonly Dictionary<ulong, (bool IsAdmin, int Aid, string? IP, DateTime Updated, BanType Ban, DateTime ExpiryBan, DateTime ExpiryComm)> _userCache = new();
+    private static string? DBH => _cachedDBH;
+    public static readonly Dictionary<ulong, (bool IsAdmin, int Aid, string? IP, string? Flags, DateTime Updated, BanType Ban, DateTime ExpiryBan, DateTime ExpiryComm)> _userCache = new();
     private static readonly Regex Ipv4WithPort = new(@"^(?<ip>\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$", RegexOptions.Compiled);
     public static Dictionary<string, (DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need)> _vote = new();
+    public static List<MapEntry> _rtv = new();
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
     public static string serverAddr = "";
     public static int serverID = 0;
     public static string VoteBan = "";
     public static string VoteMap = "";
-
-    public enum BanType
-    {
-        None    = 0,
-        Mute    = 1,
-        Gag     = 2,
-        Silence = Mute | Gag,
-        Kick    = 4,
-        Ban     = 8,
-    }
 
     public static void Init(HLstatsZMainConfig cfg, ILogger logger)
     {
@@ -72,8 +117,6 @@ public class SourceBans
 
     }
 
-    private static string? DBH => _cachedDBH;
-
     public static async Task<bool> isAdmin(CCSPlayerController player, bool? entergame = false)
     {
 
@@ -106,12 +149,14 @@ public class SourceBans
         var steam2_v1 = steam2_v0.Replace("STEAM_0:", "STEAM_1:"); // STEAM_1:X:Y
         var sid64_str = sid64.ToString(); // 64-bit
 
-        var table = $"`{_prefix}_admins`";
+        var adminsTable = $"`{_prefix}_admins`";
+        var groupsTable = $"`{_prefix}_srvgroups`";
 
         bool isAdmin = false;
         int aid = 0;
+        string? flags = null;
         string? ip_addr = GetClientIp(player);
-        _userCache[sid64] = (isAdmin, aid, ip_addr, DateTime.UtcNow, BanType.None, DateTime.UtcNow,DateTime.UtcNow);
+        _userCache[sid64] = (isAdmin, aid, ip_addr, flags, DateTime.UtcNow, BanType.None, DateTime.UtcNow,DateTime.UtcNow);
 
         if (!_enabled) return false;
 
@@ -122,10 +167,15 @@ public class SourceBans
 
             // Admin check
             using var cmd = new MySqlCommand($@"
-                SELECT aid
-                FROM {table}
-                WHERE authid IN (@s0, @s1, @s64)
-                ORDER BY FIELD(authid, @s0, @s1, @s64)
+                SELECT 
+                    a.aid,
+                    a.srv_group,
+                    COALESCE(NULLIF(TRIM(a.srv_flags), ''), g.flags) AS all_flags
+                FROM {adminsTable} AS a
+                LEFT JOIN {groupsTable} AS g
+                       ON g.name = a.srv_group
+                WHERE a.authid IN (@s0, @s1, @s64)
+                ORDER BY FIELD(a.authid, @s0, @s1, @s64)
                 LIMIT 1;", dbh);
 
             cmd.Parameters.AddWithValue("@s0",  steam2_v0);
@@ -136,11 +186,12 @@ public class SourceBans
             while (await reader.ReadAsync())
             {
                 aid     = reader.GetInt32("aid");
+                flags   = reader.IsDBNull(reader.GetOrdinal("all_flags")) ? null : reader.GetString("all_flags");
                 isAdmin = aid > 0;
             }
             reader.Close();
 
-            _userCache[sid64] = (isAdmin, aid, ip_addr, DateTime.UtcNow, BanType.None, DateTime.UtcNow,DateTime.UtcNow);
+            _userCache[sid64] = (isAdmin, aid, ip_addr, flags, DateTime.UtcNow, BanType.None, DateTime.UtcNow,DateTime.UtcNow);
 
             // Ban check
             using (var banCmd = new MySqlCommand($@"
@@ -413,14 +464,10 @@ public class SourceBans
                    if (data.ExpiryComm < now && ((data.Ban & BanType.Mute)>0))
                     {
                         player.VoiceFlags = VoiceFlags.Normal;
-                        //_userCache[steamId] = (data.IsAdmin, data.Aid, data.IP, data.Updated,
-                                               //data.Ban & ~BanType.Mute, data.ExpiryBan, data.ExpiryComm);
                         player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {HLstatsZ.TeamColor(player.TeamNum)}{player.PlayerName}{ChatColors.Default}, you are free to speak");
                     }
                     if (data.ExpiryComm < now && ((data.Ban & BanType.Gag)>0))
                     {
-                        //_userCache[steamId] = (data.IsAdmin, data.Aid, data.IP, data.Updated,
-                                              //data.Ban & ~BanType.Gag, data.ExpiryBan, data.ExpiryComm);
                         player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {HLstatsZ.TeamColor(player.TeamNum)}{player.PlayerName}{ChatColors.Default}, you are free to chat");
                     }
                 }
@@ -460,6 +507,7 @@ public class SourceBans
             userData.IsAdmin,
             userData.Aid,
             userData.IP,
+            userData.Flags,
             DateTime.UtcNow,
             newBan,
             banTime,
@@ -621,6 +669,23 @@ public class SourceBans
 
     private static bool HandleMapVote((DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need) vote)
     {
+        if (_rtv.Count > 0)
+            return HandleMultiMapVote(vote);
+
+        return HandleSingleMapVote(vote);
+    }
+
+    private static bool HandleSingleMapVote((DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need) vote)
+    {
+        // Expired
+        if ((DateTime.UtcNow - vote.Created).TotalSeconds > 30)
+        {
+            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote {ChatColors.Green}expired{ChatColors.Default}: Map → {vote.MapName}");
+            _vote.Remove("map");
+            _userVote.Remove("map");
+            return false;
+        }
+
         // Passed
         if (vote.YES >= vote.Need && !_vote.ContainsKey("kick"))
         {
@@ -641,18 +706,58 @@ public class SourceBans
             }
             return false;
         }
+        return true;
+    }
 
-        // Expired
+    private static bool HandleMultiMapVote((DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need) vote)
+    {
+        // Expired?
         if ((DateTime.UtcNow - vote.Created).TotalSeconds > 30)
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote {ChatColors.Green}expired{ChatColors.Default}: Map → {vote.MapName}");
+            Server.PrintToChatAll("[HLstatsZ] Map vote expired.");
             _vote.Remove("map");
             _userVote.Remove("map");
+            _rtv.Clear();
+            return false;
+        }
+
+        // Count votes
+        var tally = _userVote["map"].Values
+            .GroupBy(c => c)
+            .OrderByDescending(g => g.Count())
+            .FirstOrDefault();
+
+        if (tally != null && tally.Count() >= vote.Need && _rtv.Count > 0)
+        {
+            int winningChoice = tally.Key;
+
+            if (winningChoice < 0 || winningChoice >= _rtv.Count)
+            {
+                Server.PrintToChatAll("[HLstatsZ] Invalid vote index.");
+                _vote.Remove("map");
+                _userVote.Remove("map");
+                _rtv.Clear();
+                return false;
+            }
+
+            var winner = _rtv[winningChoice];
+
+            Server.PrintToChatAll($"[HLstatsZ] Vote passed: changing to {winner.DisplayName}!");
+            _vote.Remove("map");
+            _userVote.Remove("map");
+
+            var command = winner.IsSteamWorkshop
+                ? $"host_workshop_map {winner.WorkshopId}"
+                : $"changelevel {winner.MapName}";
+            DelayedCommand(command, 3.0f);
+
+            _rtv.Clear();
             return false;
         }
 
         return true;
     }
+
 
     public static void CameraCommand(CCSPlayerController admin, int d = 1)
     {
@@ -684,7 +789,7 @@ public class SourceBans
                     Name = target.PlayerName;
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
                 }
-                var (_, aid, ip, seen, _, _, _) = tuple;
+                var (_, aid, ip, _, seen, _, _, _) = tuple;
                 admin.PrintToConsole($"  -> {Name}  {Team}, SID64={sid64}, AID={aid}, LastSeen={seen:u}");
             }
         }
