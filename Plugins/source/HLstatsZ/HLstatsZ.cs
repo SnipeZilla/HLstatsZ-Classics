@@ -530,8 +530,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !kick <#userid|name> <reason>, or type !menu");
                     return HookResult.Handled;
                 }
+                string ureason = parts.Length >= 3 ? parts[2].Trim() : string.Empty;
+                if (ureason.Length < 3)
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Please provide a longer reason (min 3 characters)");
+                    return HookResult.Handled;
+                }
                 var who    = args;
-                var reason = parts.Length >= 3 ? (" (" + parts[2] + ")") : "";
+                var reason = $" ({ureason})";
                 var target = FindTarget(who);
                 if (target != null)
                 {
@@ -572,7 +578,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
                 return HookResult.Handled;
             }
-            reason = parts.Length >= 4 ? (" (" + parts[3] + ")") : "";
+            ureason = parts.Length >= 3 ? parts[2].Trim() : string.Empty;
+            if (ureason.Length < 3)
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Please provide a longer reason (min 3 characters)");
+                return HookResult.Handled;
+            }
+            reason = $" ({ureason})";
             var length = parts.Length >= 2 ?  parts[2] : "";
             if (cmd == "slay")
             {
@@ -585,6 +597,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (parts.Length < 3 || !(int.TryParse(length, out int min) && min >= 0)) 
                 {
                     SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name> <minutes|0> <reason>, or type !menu");
+                    return HookResult.Handled;
+                }
+                if (min > 1440) 
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}]  {cmd} cannot exceed 1440 minutes, or type !menu");
                     return HookResult.Handled;
                 }
             }
