@@ -100,6 +100,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
 
+        RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
         AddCommandListener(null, ComamndListenerHandler, HookMode.Pre);
 
         _menuManager = new HLZMenuManager(this);
@@ -146,6 +147,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
 
+        RemoveListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
         RemoveCommandListener(null!, ComamndListenerHandler, HookMode.Pre);
 
         SourceBans._cleanupTimer?.Kill();
@@ -296,18 +298,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         // Name
         var name = NormalizeName(token);
 
-        var exactMatches = Utilities.GetPlayers()
-            .Where(p => p?.IsValid == true &&
-                        NormalizeName(p.PlayerName) == name)
-            .ToList();
+        var players = Utilities.GetPlayers().Where(p => p?.IsValid == true).ToList();
 
-        if (exactMatches.Count == 1)
-            return exactMatches[0];
+        // 1. Exact match
+        var exactMatches = players.Where(p => NormalizeName(p.PlayerName) == name).ToList();
+        if (exactMatches.Count == 1) return exactMatches[0];
+        if (exactMatches.Count > 1) return null;
 
-        if (exactMatches.Count > 1)
-            return null;
+        // 2. Unique "starts with"
+        var prefixMatches = players.Where(p => NormalizeName(p.PlayerName).StartsWith(name)).ToList();
+        if (prefixMatches.Count == 1) return prefixMatches[0];
+        if (prefixMatches.Count > 1) return null;
 
-        return null;
+        // 3. Unique "contains"
+        var containsMatches = players.Where(p => NormalizeName(p.PlayerName).Contains(name)).ToList();
+        if (containsMatches.Count == 1) return containsMatches[0];
+        if (containsMatches.Count > 1) return null;
+
+    return null;
     }
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
@@ -409,23 +417,33 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
         }
 
-        // ---- HLstatsZ -> Daemon ----
-        var Cmds = new[] {"top10","rank","session","weaponstats","accuracy","next","clans"};
-
-        if (silenced && parts.Length == 1 && (Cmds.Contains(cmd, StringComparer.OrdinalIgnoreCase) || Regex.IsMatch(cmd, @"^top\d{1,2}$", RegexOptions.CultureInvariant)))
+        // ----- HLstatsZ -> Daemon -----
+        if (silenced && parts.Length == 1)
         {
-            _ = SendLog(player, cmd, "say");
-            return HookResult.Handled;
+            switch (cmd)
+            {
+                case "rank":
+                case "next":
+                case "top10":
+                case "top20":
+                case "top30":
+                case "session":
+                    _ = SendLog(player, cmd, "say");
+                return HookResult.Handled;
+                default:
+                break;
+            }
         }
 
-        // ---- SourceBans ----
+        // ----- SourceBans -----
         if (!SourceBans._enabled)
             return HookResult.Continue;
 
-        // ---- Handle Gag ----
-        if ((userData.Ban & BanType.Gag)>0) return HookResult.Handled;
+        // ----- Handle Gag -----
+        if ((userData.Ban & BanType.Gag)>0)
+            return HookResult.Handled;
 
-        // ----SourceBans Commands----
+        // ----- SourceBans Public Commands -----
         if (cmd == "votemap" && prefixed)
         {
             if (!votemap)
@@ -475,182 +493,163 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // ---- Handle Admin command ----
-        if (!userData.IsAdmin || !prefixed) return HookResult.Continue;
+        if (!userData.IsAdmin || !prefixed)
+            return HookResult.Continue;
+
         var adminFlags = userData.Flags.ToFlags();
 
-        if (cmd == "say" && !string.IsNullOrWhiteSpace(args))
+        switch (cmd)
         {
-            if (!string.IsNullOrWhiteSpace(args))
-                SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {args}");
+            case "say":
+                if (!string.IsNullOrWhiteSpace(args))
+                {
+                    SendChatToAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {args}");
+                    return HookResult.Handled;
+                }
+            return HookResult.Continue;
+            case "admin":
+                if (string.IsNullOrWhiteSpace(args))
+                {
+                    AdminMenu(player);
+                    return HookResult.Handled;
+                }
+            return HookResult.Continue;
+            case "kick":
+                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Kick))
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                    return HookResult.Handled;
+                }
+                if (parts.Length == 1)
+                {
+                    AdminPlayer(player);
+                    return HookResult.Handled;
+                }
+                if (parts.Length < 3) 
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !kick <#userid|name> <reason>, or type !menu");
+                    return HookResult.Handled;
+                }
+                var who    = args;
+                var reason = parts.Length >= 3 ? (" (" + parts[2] + ")") : "";
+                var target = FindTarget(who);
+                if (target != null)
+                {
+                    AdminAction(player, "kick", target, reason);
+                }
+                else
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
+                }
             return HookResult.Handled;
-        }
-
-        if (cmd == "admin" && string.IsNullOrWhiteSpace(args))
-        {
-            AdminMenu(player);
+            case "map":
+                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Map))
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
+                    return HookResult.Handled;
+                }
+                if (parts.Length == 1)
+                {
+                    MapMenu(player);
+                    return HookResult.Handled;
+                }
+                var map = text.Substring(3).Trim();
+                AdminAction(player, cmd, player, $"{map}", 0);
             return HookResult.Handled;
-        }
-
-        if (cmd == "kick")
-        {
-
-            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Kick)))
+            case "ban":
+            case "gag":
+            case "mute":
+            case "silence":
+            case "unban":
+            case "ungag":
+            case "unmute":
+            case "unsilence":
+            case "slay":
+            if ((cmd == "ban" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Ban)) ||
+                (cmd == "unban" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Unban)) ||
+                (cmd == "slay" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Slay)))
             {
                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
                 return HookResult.Handled;
             }
-
-            if (parts.Length == 1)
-            {
-                AdminPlayer(player);
-                return HookResult.Handled;
-            }
-            if (parts.Length < 3) 
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !kick <#userid|name> <reason>, or type !menu");
-                return HookResult.Handled;
-            }
-            var who    = args;
-            var reason = parts.Length >= 3 ? (" (" + parts[2] + ")") : "";
-            var target = FindTarget(who);
-            if (target != null)
-            {
-                AdminAction(player,"kick",target,reason);
-            }
-            else
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
-            }
-            return HookResult.Handled;
-        }
-
-        if (cmd == "map")
-        {
-            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Map)))
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
-                return HookResult.Handled;
-            }
-
-            if (parts.Length == 1)
-            {
-                MapMenu(player);
-                return HookResult.Handled;
-            }
-            var map = text.Substring(3).Trim();
-            AdminAction(player,cmd,player,$"{map}",0);
-            return HookResult.Handled;
-        }
-
-        if ((cmd == "ban" || cmd == "gag" || cmd == "mute" || cmd == "silence") ||
-            (cmd == "unban" || cmd == "ungag" || cmd == "unmute" || cmd == "unsilence"))
-        {
-            if ((cmd == "ban" && !(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Ban))) ||
-           (cmd == "unban" && !(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Unban))))
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
-                return HookResult.Handled;
-            }
-
-            var reason = parts.Length >= 4 ? (" (" + parts[3] + ")") : "";
+            reason = parts.Length >= 4 ? (" (" + parts[3] + ")") : "";
             var length = parts.Length >= 2 ?  parts[2] : "";
-            if (parts.Length < 3 || !(int.TryParse(length, out int min) && min >= 0)) 
+            if (cmd == "slay")
             {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name> <minutes|0> <reason>, or type !menu");
-                return HookResult.Handled;
-            }
-            var who    = parts[1];
-            var target = FindTarget(who);
-            if (target != null && target.IsValid)
-            {
-                AdminAction(player,cmd,target,reason,min);
-            }
-            else
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
-            }
-            return HookResult.Handled;
-        }
-
-        if (cmd == "slay")
-        {
-            if (!(adminFlags.Has(AdminFlags.Root) && !adminFlags.Has(AdminFlags.Slay)))
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] You don't have enough permission");
-                return HookResult.Handled;
-            }
-
-            if (parts.Length == 1)
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name>, or type !menu");
-                return HookResult.Handled;
-            }
-            var who    = args;
-            var target = FindTarget(who);
-            if (target != null && target.IsValid)
-            {
-                AdminAction(player,cmd,target,null);
-            }
-            else
-            {
-                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
-            }
-            return HookResult.Handled;
-        }
-
-         if (cmd == "team")
-         {
-             if (parts.Length < 3)
-             {
-                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name> <t|ct|spec>, or type !menu");
-                 return HookResult.Handled;
-             }
-             var tname = parts[2].ToLowerInvariant();
-             var team  = 0;
-             switch (tname)
-             {
-                case "1":
-                case "s":
-                case "spec":
-                case "spectator":
-                    team = 1;
-                    tname = "Spectator";
-                break;
-                case "2":
-                case "t":
-                case "tt":
-                case "terrorist":
-                    team = 2;
-                    tname = "Terrorist";
-                break;
-                case "3":
-                case "ct":
-                case "counter-terrorist":
-                case "counterterrorist":
-                    team = 3;
-                    tname = "Counter-Terrorist";
-                break;
-                default:
-                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Team {tname} doesn't exist, use !menu");
-                return HookResult.Handled;
-            }
-            var who    = args;
-            var target = FindTarget(who);
-            if (target != null && target.IsValid)
-            {
-                AdminAction(player,cmd,target,tname,team);
+                if (parts.Length == 1)
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name>, or type !menu");
+                    return HookResult.Handled;
+                }
             } else {
-                 SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
+                if (parts.Length < 3 || !(int.TryParse(length, out int min) && min >= 0)) 
+                {
+                    SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name> <minutes|0> <reason>, or type !menu");
+                    return HookResult.Handled;
+                }
+            }
+            who    = parts[1];
+            target = FindTarget(who);
+            if (target != null && target.IsValid)
+            {
+                AdminAction(player, cmd, target, reason, int.Parse(length)*60);
+            }
+            else
+            {
+                SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
             }
             return HookResult.Handled;
-        }
-        if (cmd == "camera")
-        {
-            int d = args == "-d" ? 1 : 0;
-            SourceBans.CameraCommand(player, d);
+            case "team":
+                 if (parts.Length < 3)
+                 {
+                     SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Usage: !{cmd} <#userid|name> <t|ct|spec>, or type !menu");
+                     return HookResult.Handled;
+                 }
+                 var tname = parts[2].ToLowerInvariant();
+                 var team  = 0;
+                 switch (tname)
+                 {
+                    case "1":
+                    case "s":
+                    case "spec":
+                    case "spectator":
+                        team = 1;
+                        tname = "Spectator";
+                    break;
+                    case "2":
+                    case "t":
+                    case "tt":
+                    case "terrorist":
+                        team = 2;
+                        tname = "Terrorist";
+                    break;
+                    case "3":
+                    case "ct":
+                    case "counter-terrorist":
+                    case "counterterrorist":
+                        team = 3;
+                        tname = "Counter-Terrorist";
+                    break;
+                    default:
+                        SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Team {tname} doesn't exist, use !menu");
+                    return HookResult.Handled;
+                }
+                who    = args;
+                target = FindTarget(who);
+                if (target != null && target.IsValid)
+                {
+                    AdminAction(player,cmd,target,tname,team);
+                } else {
+                     SendPrivateChat(player, $"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Target '{who}' not found. Use !menu");
+                }
             return HookResult.Handled;
+            case "camera":
+                int d = args == "-d" ? 1 : 0;
+                SourceBans.CameraCommand(player, d);
+            return HookResult.Handled;
+            default:
+            return HookResult.Continue;
         }
-        return HookResult.Continue;
     }
 
     [ConsoleCommand("hlx_sm_psay")]
@@ -1417,41 +1416,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         var player = @event.Userid;
         if (player == null) return HookResult.Continue;
-
         _ = SourceBans.isAdmin(player);
-
         return HookResult.Continue;
+    }
+
+    private void OnClientAuthorized(int slot, SteamID steamId)
+    {
+        SourceBans.Validator(null, steamId.SteamId64, earlyStage: true);
     }
 
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
         var player = @event.Userid;
         if (player == null) return HookResult.Continue;
-
-        _ = SourceBans.isAdmin(player);
-
-        if (SourceBans._userCache.TryGetValue(player.SteamID, out var userData))
-        {
-            if ((userData.Ban & (BanType.Ban | BanType.Kick))>0)
-            {
-                DateTime now = DateTime.UtcNow;
-                if (userData.ExpiryBan > now)
-                {
-                    var timeleft = SourceBans.FormatTimeLeft(userData.ExpiryBan - DateTime.UtcNow);
-                    var remain = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
-                    Server.ExecuteCommand($"kickid {player.UserId} \"You are banned from this server {remain}\"");
-                    Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName} tried to join while banned {remain}");
-                    return HookResult.Continue;
-                }
-            }
-            if ((userData.Ban & (BanType.Mute | BanType.Silence))>0)
-            {
-                var timeleft = SourceBans.FormatTimeLeft(userData.ExpiryBan - DateTime.UtcNow);
-                var remain = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
-                player.VoiceFlags = VoiceFlags.Muted;
-                player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName}, you are muted {remain}");
-            }
-        }
+        _ = SourceBans.isAdmin(player)
+            .ContinueWith(_ => {
+                var p = player;
+                if (p != null && p.IsValid && !p.IsBot)
+                    SourceBans.Validator(p);
+            });
         return HookResult.Continue;
     }
 
@@ -1461,7 +1444,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (player != null && player.IsValid)
             _menuManager.DestroyMenu(player);
         if (player != null && !SourceBans._enabled && SourceBans._userCache.TryGetValue(player.SteamID, out var userData))
-           SourceBans._userCache.Remove(player.SteamID);
+           SourceBans._userCache.Remove(player.SteamID); //HLstats only
         return HookResult.Continue;
     }
 

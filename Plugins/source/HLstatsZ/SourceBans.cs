@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
+using CounterStrikeSharp.API.ValveConstants.Protobuf;
 using System;
 using System.Text.RegularExpressions;
 using System.Text;
@@ -117,7 +118,7 @@ public class SourceBans
 
     }
 
-    public static async Task<bool> isAdmin(CCSPlayerController player, bool? entergame = false)
+    public static async Task<bool> isAdmin(CCSPlayerController player)
     {
 
         if (player == null || !player.IsValid)
@@ -255,6 +256,7 @@ public class SourceBans
 
         return isAdmin;
     }
+
 
     public class MapEntry
     {
@@ -430,6 +432,47 @@ public class SourceBans
             _logger?.LogError(ex, "[HLstatsZ] WriteUnBan exception for {Target}", target?.PlayerName);
             return false;
         }
+    }
+
+    public static bool Validator(CCSPlayerController? player, ulong steamId = 0, bool earlyStage = false)
+    {
+        ulong sid64 = steamId != 0 ? steamId : (player?.SteamID ?? 0);
+        if (sid64 == 0) return false;
+    
+        if (!_userCache.TryGetValue(sid64, out var userData))
+            return false;
+    
+        DateTime now = DateTime.UtcNow;
+
+        // --- Kick/Ban ---
+        if ((userData.Ban & (BanType.Ban | BanType.Kick)) > 0 && userData.ExpiryBan > now)
+        {
+            var timeleft = FormatTimeLeft(userData.ExpiryBan - now);
+            var remain   = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
+    
+            if (earlyStage && player == null)
+            {
+                Server.ExecuteCommand($"kickid {sid64} \"You are banned from this server {remain}\"");
+            }
+            else if (player != null && player.IsValid)
+            {
+                Server.NextFrame(() => { player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED); });
+                Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName} tried to join while banned {remain}");
+            }
+            return true;
+        }
+    
+        // --- Mute/Silence ---
+        if (!earlyStage && player != null && player.IsValid &&
+            (userData.Ban & (BanType.Mute | BanType.Silence)) > 0)
+        {
+            var timeleft = FormatTimeLeft(userData.ExpiryBan - now);
+            var remain   = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
+            player.VoiceFlags = VoiceFlags.Muted;
+            player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName}, you are muted {remain}");
+        }
+    
+        return false;
     }
 
     public static bool IsPlayerConnected(ulong steamId)
