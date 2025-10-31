@@ -1,9 +1,11 @@
 using MySqlConnector;
+using System.Globalization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Core.Translations;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using CounterStrikeSharp.API.ValveConstants.Protobuf;
 using System;
@@ -31,7 +33,8 @@ public enum AdminFlags
     Unban   = 1 << 3,  // e
     Slay    = 1 << 4,  // f
     Map     = 1 << 5,  // g
-    Root    = 1 << 6,  // z
+    Rcon    = 1 << 6,  // m
+    Root    = 1 << 7,  // z
 }
 
 public static class AdminFlagExtensions
@@ -44,6 +47,7 @@ public static class AdminFlagExtensions
         ['e'] = AdminFlags.Unban,
         ['f'] = AdminFlags.Slay,
         ['g'] = AdminFlags.Map,
+        ['m'] = AdminFlags.Rcon,
         ['z'] = AdminFlags.Root,
     };
 
@@ -82,22 +86,22 @@ public class SourceBans
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
     public static string serverAddr = "";
     public static int serverID = 0;
-    public static string VoteBan = "";
+    public static string VoteKick = "";
     public static string VoteMap = "";
-
+    public static int[] Durations = new int[6];
     public static void Init(HLstatsZMainConfig cfg, ILogger logger)
     {
         _logger = logger;
 
         var sb = cfg.SourceBans;
-        VoteBan = sb.VoteBan ?? "none";
+        VoteKick = sb.VoteKick ?? "none";
         VoteMap = sb.VoteMap ?? "none";
 
         if (string.IsNullOrWhiteSpace(sb.Database) || string.IsNullOrWhiteSpace(sb.Host) ||
             string.IsNullOrWhiteSpace(sb.User) || string.IsNullOrWhiteSpace(sb.Prefix) || cfg.sb == "no")
         {
             _enabled = false;
-            _logger?.LogInformation("[HLstatsZ] SourceBans disabled: missing config (sb/host/db/user/prefix).");
+            _logger?.LogInformation("[HLstatsZ] SourceBans disabled: missing config (sb=yes/host/db/user/prefix).");
             return;
         }
         var builder = new MySqlConnectionStringBuilder
@@ -137,7 +141,7 @@ public class SourceBans
                 if (now.AddMinutes(-2) < cached.Updated)
                 {
                     var time = cached.ExpiryBan - now;
-                    var timeLeft = FormatTimeLeft(time);
+                    var timeLeft = FormatTimeLeft(player,time);
                     string reason = (cached.Ban & BanType.Ban)>0 ? "Banned" : "Kicked";
                     Server.ExecuteCommand($"kickid {player.UserId} \"{reason} from server ({timeLeft} remaining)\"");
                 }
@@ -447,7 +451,7 @@ public class SourceBans
         // --- Kick/Ban ---
         if ((userData.Ban & (BanType.Ban | BanType.Kick)) > 0 && userData.ExpiryBan > now)
         {
-            var timeleft = FormatTimeLeft(userData.ExpiryBan - now);
+            var timeleft = FormatTimeLeft(player, userData.ExpiryBan - now);
             var remain   = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
     
             if (earlyStage && player == null)
@@ -457,7 +461,7 @@ public class SourceBans
             else if (player != null && player.IsValid)
             {
                 Server.NextFrame(() => { player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED); });
-                Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName} tried to join while banned {remain}");
+                Server.PrintToChatAll($"[HLstats\x07Z\x01] {player.PlayerName} tried to join while banned {remain}");
             }
             return true;
         }
@@ -466,10 +470,10 @@ public class SourceBans
         if (!earlyStage && player != null && player.IsValid &&
             (userData.Ban & (BanType.Mute | BanType.Silence)) > 0)
         {
-            var timeleft = FormatTimeLeft(userData.ExpiryBan - now);
+            var timeleft = FormatTimeLeft(player, userData.ExpiryBan - now);
             var remain   = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
             player.VoiceFlags = VoiceFlags.Muted;
-            player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {player.PlayerName}, you are muted {remain}");
+            player.PrintToChat($"[HLstats\x07Z\x01] {player.PlayerName}, you are muted {remain}");
         }
     
         return false;
@@ -507,11 +511,11 @@ public class SourceBans
                    if (data.ExpiryComm < now && ((data.Ban & BanType.Mute)>0))
                     {
                         player.VoiceFlags = VoiceFlags.Normal;
-                        player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {HLstatsZ.TeamColor(player.TeamNum)}{player.PlayerName}{ChatColors.Default}, you are free to speak");
+                        HLstatsZ.privateChat(player,"sz_chat.unmuted");
                     }
                     if (data.ExpiryComm < now && ((data.Ban & BanType.Gag)>0))
                     {
-                        player.PrintToChat($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] {HLstatsZ.TeamColor(player.TeamNum)}{player.PlayerName}{ChatColors.Default}, you are free to chat");
+                        HLstatsZ.privateChat(player,"sz_chat.ungagged");
                     }
                 }
             }
@@ -529,7 +533,7 @@ public class SourceBans
         }
     }
 
-    public static void UpdateBanUser(CCSPlayerController target, BanType type, DateTime? until, bool unban = false)
+    public static void UpdateBanUser(CCSPlayerController target, BanType type, DateTime? until, bool unban = false, string Lang = "")
     {
         var sid64 = target.SteamID;
         if (!_userCache.TryGetValue(sid64, out var userData))
@@ -592,10 +596,10 @@ public class SourceBans
         }
     }
 
-    public static string FormatTimeLeft(TimeSpan timeLeft)
+    public static string FormatTimeLeft(CCSPlayerController? player, TimeSpan timeLeft)
     {
-        if (timeLeft.TotalSeconds < 1)
-            return "expired";
+        if (player == null || timeLeft.TotalSeconds < 1)
+            return HLstatsZ.T(player,"sz_menu.expired");
 
         if (timeLeft.TotalHours >= 1)
             return $"{(int)timeLeft.TotalHours}h";
@@ -662,8 +666,7 @@ public class SourceBans
         _voteTimer?.Kill();
         _voteTimer = null;
     }
-    
-    
+
     public static bool CheckVotes()
     {
         bool active = false;
@@ -682,7 +685,7 @@ public class SourceBans
         // Target left
         if (vote.target?.SteamID == null)
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote {ChatColors.Green}canceled{ChatColors.Default}: {vote.Name} left the game");
+            HLstatsZ.publicChat("sz_chat.vote_canceled",vote.Name!);
             _vote.Remove("kick");
             _userVote.Remove("kick");
             return false;
@@ -691,7 +694,7 @@ public class SourceBans
         // Passed
         if (vote.YES >= vote.Need)
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote passed: {ChatColors.Green}Kicking{ChatColors.Default} → {vote.Name} ({vote.YES} YES)");
+            HLstatsZ.publicChat("sz_chat.vote_kick_passed",vote.Name!, vote.YES);
             _vote.Remove("kick");
             _userVote.Remove("kick");
             DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", 3.0f);
@@ -701,7 +704,7 @@ public class SourceBans
         // Expired
         if ((DateTime.UtcNow - vote.Created).TotalSeconds > 30)
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote {ChatColors.Green}expired{ChatColors.Default}: Kick → {vote.Name}");
+            HLstatsZ.publicChat("sz_chat.vote_kick_timeout",vote.Name!);
             _vote.Remove("kick");
             _userVote.Remove("kick");
             return false;
@@ -723,7 +726,7 @@ public class SourceBans
         // Expired
         if ((DateTime.UtcNow - vote.Created).TotalSeconds > 30)
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote {ChatColors.Green}expired{ChatColors.Default}: Map → {vote.MapName}");
+            HLstatsZ.publicChat("sz_chat.vote_map_timeout",vote.MapName!);
             _vote.Remove("map");
             _userVote.Remove("map");
             return false;
@@ -732,7 +735,7 @@ public class SourceBans
         // Passed
         if (vote.YES >= vote.Need && !_vote.ContainsKey("kick"))
         {
-            Server.PrintToChatAll($"[HLstats{ChatColors.Red}Z{ChatColors.Default}] Vote passed: Map → {ChatColors.Green}{vote.MapName}{ChatColors.Default} ({vote.YES} YES)");
+            HLstatsZ.publicChat("sz_chat.vote_map_passed", vote.MapName!, vote.YES);
             _vote.Remove("map");
             _userVote.Remove("map");
 
@@ -757,7 +760,7 @@ public class SourceBans
         // Expired?
         if ((DateTime.UtcNow - vote.Created).TotalSeconds > 30)
         {
-            Server.PrintToChatAll("[HLstatsZ] Map vote expired.");
+            HLstatsZ.publicChat("sz_chat.vote_map_timeout");
             _vote.Remove("map");
             _userVote.Remove("map");
             _rtv.Clear();
@@ -776,7 +779,7 @@ public class SourceBans
 
             if (winningChoice < 0 || winningChoice >= _rtv.Count)
             {
-                Server.PrintToChatAll("[HLstatsZ] Invalid vote index.");
+                Server.PrintToChatAll("[HLstats\x07Z\x01] Invalid vote index.");
                 _vote.Remove("map");
                 _userVote.Remove("map");
                 _rtv.Clear();
@@ -784,8 +787,7 @@ public class SourceBans
             }
 
             var winner = _rtv[winningChoice];
-
-            Server.PrintToChatAll($"[HLstatsZ] Vote passed: changing to {winner.DisplayName}!");
+            HLstatsZ.publicChat("sz_chat.vote_map_passed", winner.DisplayName);
             _vote.Remove("map");
             _userVote.Remove("map");
 
@@ -801,7 +803,6 @@ public class SourceBans
         return true;
     }
 
-
     public static void CameraCommand(CCSPlayerController admin, int d = 1)
     {
         if (admin == null || !admin.IsValid) return;
@@ -814,18 +815,20 @@ public class SourceBans
 
         if (groups.Count == 0)
         {
-            admin.PrintToConsole("[HLstatsZ] No duplicate IPs found.");
+            admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d_noip"));
             return;
         }
 
-        admin.PrintToConsole("[HLstatsZ] Duplicate IP report:");
+        if ( d == 1)
+             admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d"));
+        else admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera"));
         foreach (var g in groups)
         {
-            admin.PrintToConsole($"IP: {g.Key} ({g.Count()} players)");
+            admin.PrintToConsole($"  IP: {g.Key} ({g.Count()} players)");
             foreach (var (sid64, tuple) in g)
             {
                 var target = HLstatsZ.FindTarget(sid64);
-                var Name = "UnKnown, player left";
+                var Name = HLstatsZ.T(admin,"sz_console.camera_team_error");
                 var Team = "None";
                 if (target != null && target.IsValid)
                 {
@@ -833,7 +836,7 @@ public class SourceBans
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
                 }
                 var (_, aid, ip, _, seen, _, _, _) = tuple;
-                admin.PrintToConsole($"  -> {Name}  {Team}, SID64={sid64}, AID={aid}, LastSeen={seen:u}");
+                admin.PrintToConsole($"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > LastSeen → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
             }
         }
     }
