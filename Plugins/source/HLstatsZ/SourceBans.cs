@@ -14,6 +14,14 @@ using System.Text;
 
 namespace HLstatsZ;
 
+public enum TeamNum : byte
+{
+    Unassigned       = 0,
+    Spectator        = 1,
+    Terrorist        = 2,
+    CounterTerrorist = 3
+}
+
 public enum BanType
 {
     None    = 0,
@@ -453,7 +461,7 @@ public class SourceBans
         {
             var timeleft = FormatTimeLeft(player, userData.ExpiryBan - now);
             var remain   = DateTime.MaxValue > userData.ExpiryBan ? $"({timeleft} remaining)" : "(permanently)";
-    
+
             if (earlyStage && player == null)
             {
                 Server.ExecuteCommand($"kickid {sid64} \"You are banned from this server {remain}\"");

@@ -13,6 +13,7 @@
     "Prefix": "sb",
     "User": "",
     "Password": "",
+    "Website" : "",
     "VoteKick": "public",
     "VoteMap": "public",
     "Chat_Ban_Duration_Max": 10080,
