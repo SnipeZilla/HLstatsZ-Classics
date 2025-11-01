@@ -30,7 +30,7 @@
     "sz_chat.vote_canceled"        : "Vote {green}canceled{default}: {olive}{0}{default} left the game",
     "sz_chat.vote_kick_passed"     : "Vote passed: {green}Kicking{default} → {olive}{0}{default} ({1} YES)",
     "sz_chat.vote_kick_timeout"    : "Vote expired: Kick → {olive}{0}{default}",
-    "sz_chat.vote_map_passed"      : "Vote passed: Changing Map → {green}{0}{default} ({0} YES)",
+    "sz_chat.vote_map_passed"      : "Vote passed: Changing Map → {green}{0}{default} ({1} YES)",
     "sz_chat.vote_map_timeout"     : "Vote expired: Map → {0}",
     "sz_chat.vote_rtv_timeout"     : "Map vote expired",
     "sz_chat.player_record"        : "{yellow}{0}{default} has no track record (bot?)",
