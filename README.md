@@ -63,4 +63,10 @@ rtv
 | m    | RCON access(Use for perma ban)  |
 | z    | Root admin (full access)        |
 
+<img width="251" height="154" alt="image" src="https://github.com/user-attachments/assets/cfff1a70-e269-4cc3-b856-b9b2157c7944" />
+<img width="250" height="152" alt="image" src="https://github.com/user-attachments/assets/ad7c6025-613f-4c04-80e3-7729298e257e" />
+<img width="252" height="148" alt="image" src="https://github.com/user-attachments/assets/0e598253-f811-40cd-85d2-7c38d3239ccb" />
+
+
+
 
