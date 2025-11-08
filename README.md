@@ -6,7 +6,8 @@ HLstats and SourceBans integration are fully supported — but <b>not required</
 ✅ No external dependencies<br>
 ✅ Compatible with existing MySQL schema<br>
 ✅ Reload-safe and performance-optimized<br>
-✅ Native command support with privilege flags
+✅ Native command support with privilege flags<br>
+✅ Discord webhook notification
 
 
 ## Common
