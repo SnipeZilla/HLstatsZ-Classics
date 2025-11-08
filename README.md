@@ -23,6 +23,7 @@ mute
 unmute
 gag
 ungag
+nominate
 votekick
 votemap
 map
