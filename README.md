@@ -1,7 +1,8 @@
 # HLstatsZ Classics
 A lightweight, dependency-free plugin for CS2 servers using CounterStrikeSharp.
-Designed for a smooth transition from SourceMod, preserving your existing HLstats and SourceBans database. Admins, bans, and stats remain intact — no migration needed.
-HLstats and SourceBans integration are fully supported — but <b>not required</b>. You can disable either system without affecting core functionality or admin workflows.
+Designed for a smooth transition from SourceMod, preserving your existing HLstats and SourceBans database. Admins, bans, and stats remain intact — no migration needed.<br>
+HLstats and SourceBans integration are fully supported — but <b>not required</b>.<br>
+You can disable either system without affecting core functionality or admin workflows.
 
 ✅ No external dependencies<br>
 ✅ Compatible with existing MySQL schema<br>
