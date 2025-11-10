@@ -25,9 +25,10 @@ next
 ```
 ## SourceBans
 ```
-say
-psay
-hsay
+@ (chat to all admin)
+say (chat to all)
+psay (private chat)
+hsay (private hint)
 kick
 ban
 banip
