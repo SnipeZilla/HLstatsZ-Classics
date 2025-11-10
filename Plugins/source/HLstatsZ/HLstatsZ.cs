@@ -1751,7 +1751,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     privateChat(admin,"sz_chat.vote_inprogress");
                     return;
                 }
-                var availableMaps = SourceBans.GetAvailableMaps(Instance!.Config, true);
+                var availableMaps = SourceBans.GetAvailableMaps(Instance!.Config, userData.IsAdmin);
                 var match = availableMaps.FirstOrDefault(m =>
                     string.Equals(m.DisplayName, args, StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(m.MapName, args, StringComparison.OrdinalIgnoreCase) ||
