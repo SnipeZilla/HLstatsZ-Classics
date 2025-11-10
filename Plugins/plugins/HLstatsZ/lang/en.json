@@ -23,7 +23,7 @@
     "sz_chat.admin_change_map"     : "{yellow}{0}{default} changed map to {green}{1}",
     "sz_chat.admin_rights"         : "You don't have permission to override another admin!",
     "sz_chat.no_maps"              : "No alternative maps available",
-    "sz_chat.map_notfound"         : "Map '{Green}{0}{Default}' not found",
+    "sz_chat.map_notfound"         : "Map '{green}{0}{default}' not found",
     "sz_chat.join_banned"          : "{0} tried to join while banned ({1})",
     "sz_chat.join_muted"           : "{0}, you are muted ({1})",
     "sz_chat.join_gagged"          : "{0}, you are gagged ({1})",
