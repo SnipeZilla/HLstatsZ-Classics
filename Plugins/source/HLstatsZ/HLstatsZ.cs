@@ -403,6 +403,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
     }
 
+    public static void SendChatToAdmin(string message)
+    {
+        var players = Utilities.GetPlayers();
+        foreach (var player in players)
+        {
+            if (player?.IsValid == true && player?.IsBot == false)
+            {
+                if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
+                player.PrintToChat($"{message}");
+            }
+        }
+    }
+
     public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
     {
         string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
@@ -639,11 +652,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         switch (cmd)
         {
+            case "@":
             case "say":
                 var reason = parts.Length > 1 ? string.Join(' ', parts.Skip(1)).Trim() : "";
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
-                    SendChatToAll(Colors($"{reason}"));
+                    if (cmd == "@")
+                    {
+                        SendChatToAdmin(Colors($"{reason}"));
+                    } else {
+                        SendChatToAll(Colors($"{reason}"));
+                    }
                     return HookResult.Handled;
                 }
             return HookResult.Continue;
