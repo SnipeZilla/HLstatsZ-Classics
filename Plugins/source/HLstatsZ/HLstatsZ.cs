@@ -1990,12 +1990,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         var player = @event.Userid;
 
+        var sid64 = (player == null || !player.IsValid )? "error" : player.SteamID;
+Instance?.Logger.LogInformation($"1. OnPlayerConnect Steam: {sid64}");
+
+
+
         if (player == null || !player.IsValid || player.IsBot)
             return HookResult.Continue;
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached) && cached.Updated < DateTime.UtcNow.AddMinutes(-2))
-           SourceBans._userCache.Remove(player.SteamID);
+        {
+        Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {FormatTimeLeft(player, cached.Updated < DateTime.UtcNow)}");
 
+           SourceBans._userCache.Remove(player.SteamID);
+       }
+
+
+        if (cached)
+        {
+Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {FormatTimeLeft(player, cached.Updated < DateTime.UtcNow)}");
+        }
+       
         _ = SourceBans.PlayerCheck(player);
 
         return HookResult.Continue;
@@ -2004,6 +2019,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     private void OnClientAuthorized(int slot, SteamID steamId)
     {
         SourceBans.Validator(null, steamId.SteamId64, true);
+Instance?.Logger.LogInformation($"2. OnClientAuthorized Steam: {steamId.SteamId64}");
+
     }
 
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
@@ -2011,14 +2028,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var player = @event.Userid;
         if (player == null || !player.IsValid || player.IsBot)
             return HookResult.Continue;
+Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: {player.SteamID}");
 
         bool isValid = false;
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached))
+        {
             isValid = SourceBans.Validator(player);
+Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: validating cache");
 
+}
         if (!isValid)
         {
+    Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: no cache!!");
+
             _ = SourceBans.isAdmin(player);
 
         }
