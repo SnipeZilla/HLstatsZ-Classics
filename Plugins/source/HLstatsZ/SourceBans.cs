@@ -707,7 +707,8 @@ public class SourceBans
         int aMute           = userData.aMute;
         int aGag            = userData.aGag;
 
-        userData.Connected  = Connected ?? userData.Connected;
+        bool connected = Connected.HasValue ? Connected.Value : userData.Connected;
+        DateTime updated = connected ? now : userData.Updated;
 
         if (!Unban)
         {
@@ -748,7 +749,7 @@ public class SourceBans
             userData.Aid,
             userData.IP,
             userData.Flags,
-            DateTime.UtcNow,
+            updated,
             newBan,
             expiryBan,
             expiryMute,
@@ -763,13 +764,17 @@ public class SourceBans
             aBan,
             aMute,
             aGag,
-            userData.Connected
+            connected
         );
     }
 
     public static async Task GetSid()
     {
-        if (!_enabled || string.IsNullOrEmpty(_cachedDBH)) return;
+        if (!_enabled || string.IsNullOrEmpty(_cachedDBH))
+        {
+            _logger?.LogInformation("[HLstatsZ] SourceBans Get Server ID failed (too-early).");
+            return;
+        }
 
         try
         {
