@@ -572,7 +572,7 @@ public class SourceBans
 
     public static bool Validator(CCSPlayerController? player, ulong steamId = 0, bool earlyStage = false)
     {
-        ulong sid64 = steamId != 0 ? steamId : (player?.SteamID ?? 0);
+        ulong sid64 = steamId != 0 ? steamId : (player != null && player.IsValid) ? player.SteamID :0;
         if (sid64 == 0) return false;
     
         if (!_userCache.TryGetValue(sid64, out var userData))
