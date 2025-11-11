@@ -1990,7 +1990,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         var player = @event.Userid;
 
-        var sid64 = (player == null || !player.IsValid )? "error" : player.SteamID;
+        ulong sid64 = (player == null || !player.IsValid )? 0 : player.SteamID;
 Instance?.Logger.LogInformation($"1. OnPlayerConnect Steam: {sid64}");
 
 
@@ -2000,15 +2000,15 @@ Instance?.Logger.LogInformation($"1. OnPlayerConnect Steam: {sid64}");
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached) && cached.Updated < DateTime.UtcNow.AddMinutes(-2))
         {
-        Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {FormatTimeLeft(player, cached.Updated < DateTime.UtcNow)}");
+        Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {SourceBans.FormatTimeLeft(player,DateTime.UtcNow - cached.Updated)}");
 
            SourceBans._userCache.Remove(player.SteamID);
        }
 
 
-        if (cached)
+        if (SourceBans._userCache.ContainsKey(player.SteamID))
         {
-Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {FormatTimeLeft(player, cached.Updated < DateTime.UtcNow)}");
+Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {SourceBans.FormatTimeLeft(player,  DateTime.UtcNow - cached.Updated)}");
         }
        
         _ = SourceBans.PlayerCheck(player);
