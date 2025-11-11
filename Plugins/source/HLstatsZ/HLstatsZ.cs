@@ -386,6 +386,60 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     return null;
     }
 
+    private bool HandleAtCommand(CCSPlayerController player, string raw)
+    {
+        var text = raw.Length > 1 ? raw.Substring(1).TrimStart() : string.Empty;
+        if (string.IsNullOrWhiteSpace(text)) return false;
+
+        var msg = "";
+
+        if (text.StartsWith("ct ", StringComparison.OrdinalIgnoreCase))
+        {
+            msg = text.Substring(3).Trim();
+            if (msg.Length == 0) return true;
+            SendChatToTeam(CsTeam.CounterTerrorist, Colors(msg));
+            return true;
+        }
+        if (text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase))
+        {
+            msg = text.Substring(2).Trim();
+            if (msg.Length == 0) return true;
+            SendChatToTeam(CsTeam.Terrorist, Colors(msg));
+            return true;
+        }
+
+        // @ or @all <message>  -> to admins
+        var firstSpace = text.IndexOf(' ');
+        if (firstSpace < 0)
+        {
+            SendChatToAdmin(Colors(text));
+            return true;
+        }
+
+        var who = text.Substring(0, firstSpace).Trim();
+        msg   = text.Substring(firstSpace + 1).Trim();
+        if (msg.Length == 0) return true;
+
+        if (who.Equals("all", StringComparison.OrdinalIgnoreCase))
+        {
+            SendChatToAdmin(Colors(msg));
+            return true;
+        }
+
+        // player
+        var target = FindTarget(who);
+        if (target != null && target.IsValid && !target.IsBot)
+        {
+            SendPrivateChat(target, Colors(msg));
+            return true;
+        } else {
+            privateChat(player, "sz_chat.target_notfound",who);
+        }
+
+        return false;
+    }
+
+
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
         player.PrintToChat($"{message}");
@@ -398,7 +452,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
             if (player?.IsValid == true && player?.IsBot == false)
             {
-                player.PrintToChat($"{message}");
+                player.PrintToChat(message);
             }
         }
     }
@@ -408,10 +462,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var players = Utilities.GetPlayers();
         foreach (var player in players)
         {
-            if (player?.IsValid == true && player?.IsBot == false)
+            if (player?.IsValid != true || player.IsBot) continue;
+            if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
+            player.PrintToChat(message);
+        }
+    }
+
+    public static void SendChatToTeam(CsTeam team, string message)
+    {
+        var players = Utilities.GetPlayers();
+        foreach (var player in players)
+        {
+            if (player?.IsValid == true && player.IsBot == false && player.Team == team)
             {
-                if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
-                player.PrintToChat($"{message}");
+                player.PrintToChat(message);
             }
         }
     }
@@ -481,6 +545,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         bool silenced = raw.StartsWith("/");
         bool prefixed = raw.StartsWith("!") || silenced;
         string text = prefixed ? raw.Substring(1) : raw;
+
+        if (raw.StartsWith("@", StringComparison.Ordinal) && userData.IsAdmin)
+        {
+            if (HandleAtCommand(player, raw))
+                return HookResult.Handled;
+
+            return HookResult.Continue;
+        }
 
         var parts = text.Split(' ', 4, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return HookResult.Continue;
@@ -652,7 +724,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         switch (cmd)
         {
-            case "@":
             case "say":
                 var reason = parts.Length > 1 ? string.Join(' ', parts.Skip(1)).Trim() : "";
                 if (!string.IsNullOrWhiteSpace(reason))
@@ -780,7 +851,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 if (min > SourceBans.Durations[0]) 
                 {
-                    privateChat(player, "sz_chat.ban_exceeds", cmd);
+                    privateChat(player, "sz_chat.ban_exceeds", cmd, min);
                     return HookResult.Handled;
                 }
                 if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Rcon) && min == 0)
@@ -1277,7 +1348,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             switch (type)
             {
                 case 0:
-                    if ((userData.Ban & (BanType.Kick | BanType.Ban))>0 && userData.ExpiryBan > DateTime.UtcNow) continue;
+                    if ((userData.Ban & (BanType.Kick | BanType.Ban | BanType.Banip))>0 && userData.ExpiryBan > DateTime.UtcNow) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"#{target.Slot} - {name}";
                     //if (player != target)

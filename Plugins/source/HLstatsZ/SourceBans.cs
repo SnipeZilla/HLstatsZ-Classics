@@ -185,6 +185,7 @@ public class SourceBans
         int countMute = 0;
         int countGag = 0;
         int countSlay = 0;
+        int bid = 0;
 
         if (!_enabled)
         {
@@ -203,7 +204,7 @@ public class SourceBans
 
             // Ban check
             using (var banCmd = new MySqlCommand($@"
-                SELECT ends, length, RemovedOn, type, aid
+                SELECT ends, length, RemovedOn, type, aid, bid
                 FROM `{_prefix}_bans`
                 WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
                   AND RemovedOn = 0
@@ -220,6 +221,7 @@ public class SourceBans
                 while (await banReader.ReadAsync())
                 {
                     aBan = banReader.GetInt32("aid");
+                    bid = banReader.GetInt32("bid");
                     int type = banReader.GetByte("type");
                     int ends = banReader.IsDBNull(banReader.GetOrdinal("ends")) ? 0 : banReader.GetInt32("ends");
                     durationBan = banReader.IsDBNull(banReader.GetOrdinal("length")) ? 0 : banReader.GetInt32("length");
@@ -309,6 +311,25 @@ public class SourceBans
                                  countBan, countMute, countGag, countSlay,
                                  aBan, aMute, aGag, true);
 
+            Validator(player);
+
+            // update banlog
+            if (bid > 0)
+            {
+                string sql = $@"INSERT INTO `{_prefix}_banlog`
+                                (`sid`,`time`, `name`, `bid`)
+                                VALUES
+                                   (@sid,@time, @name, @bid)";
+
+                using var cmdLog = new MySqlCommand(sql, dbh);
+
+                cmdLog.Parameters.AddWithValue("@sid", serverID);
+                cmdLog.Parameters.AddWithValue("@time", (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                cmdLog.Parameters.AddWithValue("@name", PlayerName);
+                cmdLog.Parameters.AddWithValue("@bid", bid);
+
+                await cmdLog.ExecuteNonQueryAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -316,7 +337,6 @@ public class SourceBans
             return false;
         }
 
-        Validator(player);
         return isAdmin;
     }
 
