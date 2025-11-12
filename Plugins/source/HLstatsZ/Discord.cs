@@ -9,6 +9,9 @@ using CounterStrikeSharp.API.Core.Logging;
 using System.Xml.Linq;
 using System.Collections.Concurrent;
 
+using CounterStrikeSharp.API;
+
+
 namespace HLstatsZ;
 
 public static class DiscordWebhooks
@@ -55,7 +58,6 @@ public static class DiscordWebhooks
             _           => 0
         };
 
-
         if (string.IsNullOrWhiteSpace(title)) return;
 
         var adminName = admin == null ? "Console" : Clean(admin.PlayerName);
@@ -71,9 +73,17 @@ public static class DiscordWebhooks
         (_temp ? HexToInt(cfg.Discord.ColorWithExpiration) : HexToInt(cfg.Discord.ColorPermanent));
 
         var type = cmd.Contains("ban") ? "banlist" : "commslist";
-        var urlBase = cfg.SourceBans.Website.TrimEnd('/');
+
+        string urlBase = cfg.SourceBans.Website.Trim();
+        if (!string.IsNullOrEmpty(urlBase) && !urlBase.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            urlBase = "https://" + urlBase;
+        }
+        urlBase = urlBase.TrimEnd('/');
+
         var steamEscaped = Uri.EscapeDataString(steam2);
         var description = cfg.Discord.Description;
+
         if (!string.IsNullOrWhiteSpace(urlBase))
         {
             var urlWeb = $"{urlBase}/index.php?p={type}&searchText={steamEscaped}";
@@ -115,6 +125,7 @@ public static class DiscordWebhooks
                 }
             }
         };
+
 
         var json = JsonSerializer.Serialize(payload, _json);
         await PostWebhook(cfg.Discord.WebhookUrl, json, logger);

@@ -134,7 +134,7 @@ public class SourceBans
             Password = sb.Password,
             Pooling = true,
             ConnectionReset = true,
-            SslMode = MySqlSslMode.Preferred,
+            SslMode = Enum.TryParse<MySqlSslMode>(sb.SslMode, true, out var mode) ? mode : MySqlSslMode.None,
             DefaultCommandTimeout = 5
         };
         _cachedDBH = builder.ConnectionString;
@@ -342,17 +342,7 @@ public class SourceBans
 
             // === banlog (blocked (x)) ===
             if (bid > 0)
-            {
-                string sql = $@"INSERT INTO `{_prefix}_banlog` (`sid`,`time`, `name`, `bid`)
-                                VALUES (@sid,@time, @name, @bid)";
-
-                using var cmdLog = new MySqlCommand(sql, dbh);
-                cmdLog.Parameters.AddWithValue("@sid",  serverID);
-                cmdLog.Parameters.AddWithValue("@time", (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                cmdLog.Parameters.AddWithValue("@name", playerName);
-                cmdLog.Parameters.AddWithValue("@bid",  bid);
-                await cmdLog.ExecuteNonQueryAsync().ConfigureAwait(false);
-            }
+                _ = UpdateBlocked(player,bid);
 
         } catch (Exception ex) {
             _logger?.LogError(ex, "[HLstatsZ] SourceBans checks failed for {Sid64}", sid64);
@@ -551,6 +541,68 @@ public class SourceBans
         }
     }
 
+    public static async Task UpdateBlocked(CCSPlayerController player, int bid = 0)
+    {
+        if (player == null || !player.IsValid) return;
+
+        ulong sid64 = player.SteamID;
+        if (sid64 == 0) return;
+
+        // Locals
+        string playerName = player.PlayerName;
+        string? ipAddr    = GetClientIp(player);
+        string steam2_v0  = ToSteam2(sid64);
+        string steam2_v1  = steam2_v0.Replace("STEAM_0:", "STEAM_1:");
+        string sid64Str   = sid64.ToString();
+
+        await using var dbh = new MySqlConnection(DBH);
+        await dbh.OpenAsync();
+
+        try
+        {
+            if (bid == 0 )
+            {
+                using (var banCmd = new MySqlCommand($@"
+                    SELECT bid
+                    FROM `{_prefix}_bans`
+                    WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
+                      AND RemovedOn = 0
+                      AND (created = ends OR ends > UNIX_TIMESTAMP())
+                    ORDER BY ends DESC
+                    LIMIT 1;", dbh))
+                {
+                    banCmd.Parameters.AddWithValue("@s0",  steam2_v0);
+                    banCmd.Parameters.AddWithValue("@s1",  steam2_v1);
+                    banCmd.Parameters.AddWithValue("@s64", sid64Str);
+                    banCmd.Parameters.AddWithValue("@ip",  (object?)ipAddr ?? DBNull.Value);
+
+                    using var banReader = await banCmd.ExecuteReaderAsync();
+                    while (await banReader.ReadAsync())
+                    {
+                        bid = banReader.GetInt32("bid");
+                    }
+                }
+            }
+
+            if (bid > 0)
+            {
+                string sql = $@"INSERT INTO `{_prefix}_banlog` (`sid`,`time`, `name`, `bid`)
+                                VALUES (@sid,@time, @name, @bid)";
+                using var cmdLog = new MySqlCommand(sql, dbh);
+                cmdLog.Parameters.AddWithValue("@sid",  serverID);
+                cmdLog.Parameters.AddWithValue("@time", (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                cmdLog.Parameters.AddWithValue("@name", playerName);
+                cmdLog.Parameters.AddWithValue("@bid",  bid);
+                await cmdLog.ExecuteNonQueryAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "[HLstatsZ] UpdateBlocked {targetName} failed", playerName);
+            return;
+        }
+    }
+
     public static async Task<bool> WriteUnBan(CCSPlayerController target, CCSPlayerController? admin, BanType typeToRemove, string ureason)
     {
         _userCache.TryGetValue(target.SteamID, out var targetData);
@@ -621,6 +673,7 @@ public class SourceBans
             }
             else if (player != null && player.IsValid)
             {
+                _ = UpdateBlocked(player);
                 Server.NextFrame(() => { player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED); });
                 HLstatsZ.publicChat("sz_chat.join_banned",player.PlayerName,remain);
             }
@@ -1104,7 +1157,7 @@ public class SourceBans
                 {
                     Name = target.PlayerName;
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
-                }
+                } else { continue; }
                 var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _,online) = tuple;
                 admin.PrintToConsole($"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
             }

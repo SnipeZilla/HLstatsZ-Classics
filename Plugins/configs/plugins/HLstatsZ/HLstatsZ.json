@@ -1,7 +1,6 @@
 {
   "Enable_HLstats": false,
   "Enable_Sourcebans": true,
-  "Enable_Discord": false,
   "Log_Address": "",
   "Log_Port": 27500,
   "BroadcastAll": 0,
@@ -11,6 +10,7 @@
     "Host": "",
     "Port": 3306,
     "Database": "",
+    "SslMode": "None",
     "Prefix": "sb",
     "User": "",
     "Password": "",

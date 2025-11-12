@@ -39,6 +39,7 @@ public class SourceBansConfig
 {
     [JsonPropertyName("Host")] public string Host { get; set; } = "127.0.0.1";
     [JsonPropertyName("Port")] public int Port { get; set; } = 3306;
+    [JsonPropertyName("SslMode")] public string SslMode { get; set; } = "None";
     [JsonPropertyName("Database")] public string Database { get; set; } = "";
     [JsonPropertyName("Prefix")] public string Prefix { get; set; } = "sb";
     [JsonPropertyName("User")] public string User { get; set; } = "";
@@ -158,14 +159,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             serverAddr = $"{serverIP}:{hostPort}";
             Config.ServerAddr=serverAddr;
         }
-        SourceBans.Init(Config, Logger);
         SourceBans.serverAddr = serverAddr;
         SourceBans.hostName = ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
+        SourceBans.Init(Config, Logger);
+        _ = SourceBans.GetSid();
 
         if (hotReload)
         {
             _ = SourceBans.Refresh();
-            _ = SourceBans.GetSid();
             SourceBans._canVote = true;
         }
 
@@ -1741,12 +1742,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     _ = SourceBans.WriteBan(target, admin, type, number, reason);
                 }
                 SourceBans.UpdateBanUser(target.SteamID, type, number > 0 ? number : int.MaxValue, false, userData.Aid);
+                if (SourceBans._userCache.TryGetValue(target.SteamID, out var refreshed))
+                {
+                    targetData = refreshed;
+                }
                 DateTime now = DateTime.UtcNow.AddMinutes(-1);
                 var _expiry   = cmd == "ban" ? targetData.DurationBan :
                                 cmd == "banip" ? targetData.DurationBan :
                                 cmd == "mute" ? targetData.DurationMute :
                                 cmd == "gag" ? targetData.DurationGag : targetData.DurationGag;
+
+
                 var remaining = _expiry == int.MaxValue ? T(admin,"sz_menu.permanently") : SourceBans.FormatTimeLeft(admin, TimeSpan.FromSeconds(_expiry));
+
                 _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
                 publicChat(message,admin.PlayerName,target.PlayerName,remaining,reason);
                 privateChat(target,"sz_chat.sourcebans_website",Instance!.Config.SourceBans.Website);
