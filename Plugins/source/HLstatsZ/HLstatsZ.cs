@@ -161,11 +161,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         SourceBans.Init(Config, Logger);
         SourceBans.serverAddr = serverAddr;
         SourceBans.hostName = ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
-        _ = SourceBans.GetSid();
 
         if (hotReload)
         {
             _ = SourceBans.Refresh();
+            _ = SourceBans.GetSid();
             SourceBans._canVote = true;
         }
 
