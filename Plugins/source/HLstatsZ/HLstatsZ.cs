@@ -2063,7 +2063,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (player != null)
         {
-           if (!SourceBans._enabled) { SourceBans._userCache.Remove(player.SteamID);}
+           if (!SourceBans._enabled) { SourceBans._userCache.TryRemove(player.SteamID, out _);}
            else {SourceBans.UpdateBanUser(player.SteamID, BanType.None, 0, true, 0, false);}
         }
         return HookResult.Continue;

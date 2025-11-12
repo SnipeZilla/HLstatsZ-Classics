@@ -11,6 +11,7 @@ using CounterStrikeSharp.API.ValveConstants.Protobuf;
 using System;
 using System.Text.RegularExpressions;
 using System.Text;
+using System.Collections.Concurrent;
 
 namespace HLstatsZ;
 
@@ -89,7 +90,7 @@ public class SourceBans
     public static GameTimer? _DelayedCommand;
     private static ILogger? _logger;
     private static string? DBH => _cachedDBH;
-    public static readonly Dictionary<ulong, (string PlayerName, bool IsAdmin, int Aid, string? IP, string? Flags, DateTime Updated,
+    public static readonly ConcurrentDictionary<ulong, (string PlayerName, bool IsAdmin, int Aid, string? IP, string? Flags, DateTime Updated,
                                               BanType Ban, DateTime ExpiryBan, DateTime ExpiryMute, DateTime ExpiryGag,
                                               int DurationBan, int DurationMute, int DurationGag,
                                               int CountBan, int CountMute, int CountGag, int CountSlay,
@@ -721,10 +722,8 @@ public class SourceBans
 
             var player = Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.SteamID == steamId);
 
-            // unmute / ungag
-            if ((data.Ban & (BanType.Banip | BanType.Ban | BanType.Mute | BanType.Silence))!=0)
+            if ((data.Ban & (BanType.Banip | BanType.Ban | BanType.Mute | BanType.Gag))!=0)
             {
-
                 if (data.ExpiryBan < now && ((data.Ban & BanType.Kick)!=0))
                 {
                     SourceBans.UpdateBanUser(steamId, BanType.Kick, 0,true, 0);
@@ -762,7 +761,7 @@ public class SourceBans
 
         foreach (var key in keysToRemove)
         {
-            _userCache.Remove(key);
+            _userCache.TryRemove(key, out _);
         }
     }
 

@@ -9,9 +9,6 @@ using CounterStrikeSharp.API.Core.Logging;
 using System.Xml.Linq;
 using System.Collections.Concurrent;
 
-using CounterStrikeSharp.API;
-
-
 namespace HLstatsZ;
 
 public static class DiscordWebhooks
