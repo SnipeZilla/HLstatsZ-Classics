@@ -25,7 +25,6 @@ public class HLstatsZMainConfig : IBasePluginConfig
 {
     [JsonPropertyName("Enable_HLstats")] public bool Enable_HLstats { get; set; } = false;
     [JsonPropertyName("Enable_Sourcebans")] public bool Enable_Sourcebans { get; set; } = true;
-    [JsonPropertyName("Enable_Discord")] public bool Enable_Discord { get; set; } = false;
     [JsonPropertyName("Log_Address")] public string Log_Address { get; set; } = "127.0.0.1";
     [JsonPropertyName("Log_Port")] public int Log_Port { get; set; } = 27500;
     [JsonPropertyName("BroadcastAll")] public int BroadcastAll { get; set; } = 0;
@@ -141,7 +140,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
         RegisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
-        RegisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
+        //RegisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
         RegisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -189,7 +188,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
         DeregisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         DeregisterEventHandler<EventBombDefused>(OnBombDefused);
-        DeregisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
+        //DeregisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
         DeregisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
         DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -834,7 +833,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 privateChat(player, "sz_chat.permission");
                 return HookResult.Handled;
             }
-            var length = parts.Length > 2 ? parts[2] : "1";
+            var duration = parts.Length > 2 ? parts[2].Trim() : "17";
             reason  = parts.Length > 3 ? string.Join(' ', parts.Skip(3)).Trim() : "";
             if (cmd == "slay")
             {
@@ -844,7 +843,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     return HookResult.Handled;
                 }
             } else {
-                if (parts.Length < 3 || !(int.TryParse(length, out int min) && min >= 0)) 
+                if (parts.Length < 3 || !(int.TryParse(duration, out int min) && min >= 0)) 
                 {
                     privateChat(player, "sz_chat.banning_usage", cmd);
                     return HookResult.Handled;
@@ -869,7 +868,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             target = FindTarget(who);
             if (target != null && target.IsValid)
             {
-                AdminAction(player, cmd, target, reason, int.Parse(length)*60);
+                AdminAction(player, cmd, target, reason, int.Parse(duration)*60);
             }
             else
             {
@@ -886,7 +885,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 privateChat(player, "sz_chat.permission");
                 return HookResult.Handled;
             }
-            length = parts.Length > 1 ? parts[1] : "1";
+            //length = parts.Length > 1 ? parts[1] : "1";
             reason  = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
             if (parts.Length < 3) 
             {
@@ -1671,7 +1670,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 {
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, userData.Aid);
                     _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",5.0f);
                 }
                 publicChat("sz_chat.admin_kicked",admin.PlayerName,target.PlayerName,reason);
             break; }
@@ -1743,7 +1742,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 SourceBans.UpdateBanUser(target.SteamID, type, number > 0 ? number : int.MaxValue, false, userData.Aid);
                 DateTime now = DateTime.UtcNow.AddMinutes(-1);
-                var _expiry   = cmd == "ban" ? targetData.DurationBan : cmd == "banip" ? targetData.DurationBan : cmd == "mute" ? targetData.DurationMute : cmd == "gag" ? targetData.DurationGag : targetData.DurationGag;
+                var _expiry   = cmd == "ban" ? targetData.DurationBan :
+                                cmd == "banip" ? targetData.DurationBan :
+                                cmd == "mute" ? targetData.DurationMute :
+                                cmd == "gag" ? targetData.DurationGag : targetData.DurationGag;
                 var remaining = _expiry == int.MaxValue ? T(admin,"sz_menu.permanently") : SourceBans.FormatTimeLeft(admin, TimeSpan.FromSeconds(_expiry));
                 _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
                 publicChat(message,admin.PlayerName,target.PlayerName,remaining,reason);
@@ -1751,7 +1753,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (cmd == "ban" || cmd == "banip")
                 {
                     target.CommitSuicide(false, true);
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",3.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",5.0f);
                 }
             break; }
             case "ungag":
@@ -1846,7 +1848,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 privateChat(admin, "sz_chat.admin_change_map", admin.PlayerName, match.MapName);
                 var command = match.IsSteamWorkshop ? $"host_workshop_map {match.WorkshopId}" : $"changelevel {match.MapName}";
-                SourceBans.DelayedCommand(command,3.0f);
+                SourceBans.DelayedCommand(command,5.0f);
             break; }
             case "slay":
                 if (target == null || !target.IsValid) return;
@@ -1986,41 +1988,39 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         return HookResult.Continue;
     }
 
-    public HookResult OnPlayerConnect(EventPlayerConnect @event, GameEventInfo info)
-    {
-        var player = @event.Userid;
-
-        ulong sid64 = (player == null || !player.IsValid )? 0 : player.SteamID;
-Instance?.Logger.LogInformation($"1. OnPlayerConnect Steam: {sid64}");
-
-
-
-        if (player == null || !player.IsValid || player.IsBot)
-            return HookResult.Continue;
-
-        if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached) && cached.Updated < DateTime.UtcNow.AddMinutes(-2))
-        {
-        Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {SourceBans.FormatTimeLeft(player,DateTime.UtcNow - cached.Updated)}");
-
-           SourceBans._userCache.Remove(player.SteamID);
-       }
-
-
-        if (SourceBans._userCache.ContainsKey(player.SteamID))
-        {
-Instance?.Logger.LogInformation($"1. OnPlayerConnect cache: {SourceBans.FormatTimeLeft(player,  DateTime.UtcNow - cached.Updated)}");
-        }
-       
-        _ = SourceBans.PlayerCheck(player);
-
-        return HookResult.Continue;
-    }
+    //public HookResult OnPlayerConnect(EventPlayerConnect @event, GameEventInfo info)
+    //{
+    //    var player = @event.Userid;
+	//
+    //    if (player == null || !player.IsValid || player.IsBot)
+    //        return HookResult.Continue;
+	//
+    //    if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached) && cached.Updated < DateTime.UtcNow.AddMinutes(-2))
+    //       SourceBans._userCache.Remove(player.SteamID);
+	//
+    //    _ = SourceBans.PlayerCheck(player);
+	//
+    //    return HookResult.Continue;
+    //}
 
     private void OnClientAuthorized(int slot, SteamID steamId)
     {
-        SourceBans.Validator(null, steamId.SteamId64, true);
-Instance?.Logger.LogInformation($"2. OnClientAuthorized Steam: {steamId.SteamId64}");
+        ulong sid64 = steamId.SteamId64;
 
+        var hasCache = SourceBans._userCache.TryGetValue(sid64, out var cached);
+        bool refresh = !hasCache || cached.Updated <= DateTime.UtcNow - TimeSpan.FromMinutes(2);
+
+        var player = Utilities.GetPlayerFromSlot(slot);
+
+        Server.NextFrame(() =>
+        {
+            if (player != null && player.IsValid && !player.IsBot)
+                SourceBans.Validator(player, sid64, earlyStage: true);
+            else
+                SourceBans.Validator(null, sid64, earlyStage: true);
+        });
+
+        _ = SourceBans.isAdmin(player ?? null, refresh);
     }
 
     public HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
@@ -2028,20 +2028,14 @@ Instance?.Logger.LogInformation($"2. OnClientAuthorized Steam: {steamId.SteamId6
         var player = @event.Userid;
         if (player == null || !player.IsValid || player.IsBot)
             return HookResult.Continue;
-Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: {player.SteamID}");
 
         bool isValid = false;
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached))
-        {
             isValid = SourceBans.Validator(player);
-Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: validating cache");
 
-}
         if (!isValid)
         {
-    Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: no cache!!");
-
             _ = SourceBans.isAdmin(player);
 
         }
@@ -2104,7 +2098,7 @@ Instance?.Logger.LogInformation($"3. OnPlayerConnectFull: validating cache");
             {
                 publicChat("sz_chat.nominate_validation",match.MapName);
                 var command = match.IsSteamWorkshop ? $"host_workshop_map {match.WorkshopId}" : $"changelevel {match.MapName}";
-                SourceBans.DelayedCommand(command, 3.0f);
+                SourceBans.DelayedCommand(command, 5.0f);
             }
 
         }

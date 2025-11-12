@@ -23,7 +23,7 @@ public static class DiscordWebhooks
 
     public static async Task Send(HLstatsZMainConfig cfg, string cmd, CCSPlayerController? admin, ulong steam64, string reason, ILogger? logger = null )
     {
-        if (cfg is null || !cfg.Enable_Discord || string.IsNullOrWhiteSpace(cfg.Discord.WebhookUrl)) return;
+        if (cfg is null || string.IsNullOrWhiteSpace(cfg.Discord.WebhookUrl)) return;
         if (!SourceBans._userCache.TryGetValue(steam64, out var userData)) return;
 
         var title = cmd switch

@@ -144,65 +144,60 @@ public class SourceBans
 
     }
 
-    public static async Task<bool> isAdmin(CCSPlayerController player, bool refresh = false)
+    public static async Task<bool> isAdmin(CCSPlayerController? player, bool refresh = false)
     {
+        if (player == null || !player.IsValid) return false;
 
-        if (player == null || !player.IsValid)
-            return false;
-
-        var sid64 = player.SteamID;
+        ulong sid64 = player.SteamID;
         if (sid64 == 0) return false;
 
         DateTime now = DateTime.UtcNow;
 
-        // Cache
-        if (_userCache.TryGetValue(sid64, out var cached) && _enabled && !refresh)
+        if (_enabled && !refresh && _userCache.TryGetValue(sid64, out var cached))
             return cached.IsAdmin;
 
-        var steam2_v0 = ToSteam2(sid64); // STEAM_0:X:Y
-        var steam2_v1 = steam2_v0.Replace("STEAM_0:", "STEAM_1:"); // STEAM_1:X:Y
-        var sid64_str = sid64.ToString(); // 64-bit
+        // Locals
+        string playerName = player.PlayerName;
+        string? ipAddr    = GetClientIp(player);
 
-        var adminsTable = $"`{_prefix}_admins`";
-        var groupsTable = $"`{_prefix}_srvgroups`";
+        string steam2_v0 = ToSteam2(sid64);
+        string steam2_v1 = steam2_v0.Replace("STEAM_0:", "STEAM_1:");
+        string sid64Str  = sid64.ToString();
 
-        bool isAdmin = false;
-        int aid = 0;
-        int aBan = 0;
-        int aMute = 0;
-        int aGag = 0;
-        string? flags = null;
-        string? ip_addr = GetClientIp(player);
-        string PlayerName = player.PlayerName;
-        var hasBan = BanType.None;
-        DateTime endBan = now;
-        DateTime endMute = now;
-        DateTime endGag = now;
-        int durationBan = 0;
-        int durationMute = 0;
-        int durationGag = 0;
-        int countBan = 0;
-        int countMute = 0;
-        int countGag = 0;
-        int countSlay = 0;
-        int bid = 0;
+        string adminsTable = $"`{_prefix}_admins`";
+        string groupsTable = $"`{_prefix}_srvgroups`";
 
+        bool   isAdmin      = false;
+        int    aid          = 0;
+        int    aBan         = 0;
+        int    aMute        = 0;
+        int    aGag         = 0;
+        string? flags       = null;
+        BanType hasBan      = BanType.None;
+        DateTime endBan     = now;
+        DateTime endMute    = now;
+        DateTime endGag     = now;
+        int durationBan     = 0, durationMute = 0, durationGag = 0;
+        int countBan        = 0, countMute = 0, countGag = 0, countSlay = 0;
+        int bid             = 0;
+
+        // HLstats only
         if (!_enabled)
         {
-            _userCache[sid64] = (PlayerName, isAdmin, aid, ip_addr, flags, DateTime.UtcNow,
-                                 BanType.None, endBan, endMute, endGag,
-                                 durationBan, durationMute, durationGag,
-                                 countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, true);
-             return false;
+            _userCache[sid64] = (playerName, false, 0, ipAddr, null, DateTime.UtcNow,
+                                 BanType.None, now, now, now,
+                                 0, 0, 0,
+                                 0, 0, 0, 0,
+                                 0, 0, 0, true);
+            return false;
         }
 
         try
         {
             using var dbh = new MySqlConnection(DBH);
-            await dbh.OpenAsync();
+            await dbh.OpenAsync().ConfigureAwait(false);
 
-            // Ban check
+            // === 1. BAN CHECK ===
             using (var banCmd = new MySqlCommand($@"
                 SELECT ends, length, RemovedOn, type, aid, bid
                 FROM `{_prefix}_bans`
@@ -212,33 +207,44 @@ public class SourceBans
                 ORDER BY ends DESC
                 LIMIT 1;", dbh))
             {
-                banCmd.Parameters.AddWithValue("@s0", steam2_v0);
-                banCmd.Parameters.AddWithValue("@s1", steam2_v1);
-                banCmd.Parameters.AddWithValue("@s64", sid64_str);
-                banCmd.Parameters.AddWithValue("@ip", (object?)ip_addr ?? DBNull.Value);
+                banCmd.Parameters.AddWithValue("@s0",  steam2_v0);
+                banCmd.Parameters.AddWithValue("@s1",  steam2_v1);
+                banCmd.Parameters.AddWithValue("@s64", sid64Str);
+                banCmd.Parameters.AddWithValue("@ip",  (object?)ipAddr ?? DBNull.Value);
 
-                using var banReader = await banCmd.ExecuteReaderAsync();
-                while (await banReader.ReadAsync())
+                using var banReader = await banCmd.ExecuteReaderAsync().ConfigureAwait(false);
+                while (await banReader.ReadAsync().ConfigureAwait(false))
                 {
-                    aBan = banReader.GetInt32("aid");
-                    bid = banReader.GetInt32("bid");
-                    int type = banReader.GetByte("type");
-                    int ends = banReader.IsDBNull(banReader.GetOrdinal("ends")) ? 0 : banReader.GetInt32("ends");
-                    durationBan = banReader.IsDBNull(banReader.GetOrdinal("length")) ? 0 : banReader.GetInt32("length");
-                    endBan = durationBan > 0 ? DateTime.UtcNow.AddSeconds((DateTimeOffset.FromUnixTimeSeconds(ends).UtcDateTime - DateTime.UtcNow).TotalSeconds) : DateTime.MaxValue;
-                    var banType = type == 1 ? BanType.Banip : BanType.Ban;
-                    hasBan |= banType;
+                    aBan             = banReader.GetInt32("aid");
+                    bid              = banReader.GetInt32("bid");
+                    int type         = banReader.GetByte("type");
+                    int endsUnix     = banReader.IsDBNull(banReader.GetOrdinal("ends"))   ? 0 : banReader.GetInt32("ends");
+                    int lenMinutes   = banReader.IsDBNull(banReader.GetOrdinal("length")) ? 0 : banReader.GetInt32("length");
+
+                    durationBan      = lenMinutes;
+                    endBan           = ComputeEnd(endsUnix, lenMinutes);
+
+                    var banType      = (type == 1) ? BanType.Banip : BanType.Ban;
+                    hasBan          |= banType;
                     countBan++;
                 }
-                banReader.Close();
             }
-            _userCache[sid64] = (PlayerName, isAdmin, aid, ip_addr, flags, DateTime.UtcNow,
+
+            _userCache[sid64] = (playerName, isAdmin, aid, ipAddr, flags, DateTime.UtcNow,
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
                                  aBan, aMute, aGag, true);
 
-            // Comms check
+            Server.NextFrame(() =>
+            {
+                if (player != null && player.IsValid && !player.IsBot)
+                    Validator(player, steamId: sid64, earlyStage: true);
+                else
+                    Validator(null,   steamId: sid64, earlyStage: true);
+            });
+
+            // === 2. COMMS CHECK ===
             using (var commsCmd = new MySqlCommand($@"
                 SELECT ends, length, RemovedOn, type, aid
                 FROM `{_prefix}_comms`
@@ -250,94 +256,117 @@ public class SourceBans
             {
                 commsCmd.Parameters.AddWithValue("@s0", steam2_v0);
                 commsCmd.Parameters.AddWithValue("@s1", steam2_v1);
-                commsCmd.Parameters.AddWithValue("@s64", sid64_str);
+                commsCmd.Parameters.AddWithValue("@s64", sid64Str);
 
-                using var commReader = await commsCmd.ExecuteReaderAsync();
-                while (await commReader.ReadAsync())
+                using var commReader = await commsCmd.ExecuteReaderAsync().ConfigureAwait(false);
+                while (await commReader.ReadAsync().ConfigureAwait(false))
                 {
-                    int type = commReader.GetByte("type");
-                    int ends = commReader.IsDBNull(commReader.GetOrdinal("ends")) ? 0 : commReader.GetInt32("ends");
-                    if ( type == 1)
+                    int type     = commReader.GetByte("type"); // 1=mute, 2=gag
+                    int endsUnix = commReader.IsDBNull(commReader.GetOrdinal("ends")) ? 0 : commReader.GetInt32("ends");
+                    int len      = commReader.IsDBNull(commReader.GetOrdinal("length")) ? 0 : commReader.GetInt32("length");
+
+                    if (type == 1)
                     {
-                        durationMute = commReader.IsDBNull(commReader.GetOrdinal("length")) ? 0 : commReader.GetInt32("length");
-                        endMute = durationMute > 0 ? DateTimeOffset.FromUnixTimeSeconds(ends).UtcDateTime : DateTime.MaxValue;
-                        aMute = commReader.GetInt32("aid");
-                        hasBan |= BanType.Mute;
+                        durationMute = len;
+                        endMute      = ComputeEnd(endsUnix, len);
+                        aMute        = commReader.GetInt32("aid");
+                        hasBan      |= BanType.Mute;
                         countMute++;
-                    } else {
-                        durationGag = commReader.IsDBNull(commReader.GetOrdinal("length")) ? 0 : commReader.GetInt32("length");
-                        endGag = durationGag > 0 ? DateTimeOffset.FromUnixTimeSeconds(ends).UtcDateTime : DateTime.MaxValue;
-                        aGag = commReader.GetInt32("aid");
-                        hasBan |= BanType.Gag;
+                    }
+                    else
+                    {
+                        durationGag = len;
+                        endGag      = ComputeEnd(endsUnix, len);
+                        aGag        = commReader.GetInt32("aid");
+                        hasBan     |= BanType.Gag;
                         countGag++;
                     }
                 }
-                commReader.Close();
             }
-            _userCache[sid64] = (PlayerName, isAdmin, aid, ip_addr, flags, DateTime.UtcNow,
+
+            _userCache[sid64] = (playerName, isAdmin, aid, ipAddr, flags, DateTime.UtcNow,
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
                                  aBan, aMute, aGag, true);
 
-            // Admin check
-            using var cmd = new MySqlCommand($@"
-                SELECT 
-                    a.aid,
-                    a.srv_group,
-                    CONCAT_WS('', TRIM(a.srv_flags), g.flags) AS all_flags
+            if (countBan == 0 && (countMute + countGag) > 0)
+            {
+                Server.NextFrame(() =>
+                {
+                    if (player != null && player.IsValid && !player.IsBot)
+                        Validator(player, steamId: sid64, earlyStage: true);
+                    else
+                        Validator(null,   steamId: sid64, earlyStage: true);
+                });
+            }
+
+            // === 3. ADMIN CHECK ===
+            using (var adminCmd = new MySqlCommand($@"
+                SELECT a.aid, a.srv_group, CONCAT_WS('', TRIM(a.srv_flags), g.flags) AS all_flags
                 FROM {adminsTable} AS a
-                LEFT JOIN {groupsTable} AS g
-                       ON g.name = a.srv_group
+                LEFT JOIN {groupsTable} AS g ON g.name = a.srv_group
                 WHERE a.authid IN (@s0, @s1, @s64)
                 ORDER BY FIELD(a.authid, @s0, @s1, @s64)
-                LIMIT 1;", dbh);
-
-            cmd.Parameters.AddWithValue("@s0",  steam2_v0);
-            cmd.Parameters.AddWithValue("@s1",  steam2_v1);
-            cmd.Parameters.AddWithValue("@s64", sid64_str);
-
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync())
+                LIMIT 1;", dbh))
             {
-                aid     = reader.GetInt32("aid");
-                flags   = reader.IsDBNull(reader.GetOrdinal("all_flags")) ? null : reader.GetString("all_flags");
-                isAdmin = !string.IsNullOrEmpty(flags) && aid > 0 && (flags.Contains('b') || flags.Contains('z'));
+                adminCmd.Parameters.AddWithValue("@s0",  steam2_v0);
+                adminCmd.Parameters.AddWithValue("@s1",  steam2_v1);
+                adminCmd.Parameters.AddWithValue("@s64", sid64Str);
+
+                using var reader = await adminCmd.ExecuteReaderAsync().ConfigureAwait(false);
+                while (await reader.ReadAsync().ConfigureAwait(false))
+                {
+                    aid   = reader.GetInt32("aid");
+                    flags = reader.IsDBNull(reader.GetOrdinal("all_flags")) ? null : reader.GetString("all_flags");
+                    isAdmin = aid > 0 && !(flags is null) && flags.AsSpan().IndexOfAny('b','z') >= 0;
+                }
             }
-            reader.Close();
-            _userCache[sid64] = (PlayerName, isAdmin, aid, ip_addr, flags, DateTime.UtcNow,
+
+            _userCache[sid64] = (playerName, isAdmin, aid, ipAddr, flags, DateTime.UtcNow,
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
                                  aBan, aMute, aGag, true);
 
-            Validator(player);
+            if (isAdmin)
+            {
+                Server.NextFrame(() =>
+                {
+                    if (player != null && player.IsValid && !player.IsBot)
+                        Validator(player, steamId: sid64, earlyStage: true);
+                    else
+                        Validator(null,   steamId: sid64, earlyStage: true);
+                });
+            }
 
-            // update banlog
+            // === banlog (blocked (x)) ===
             if (bid > 0)
             {
-                string sql = $@"INSERT INTO `{_prefix}_banlog`
-                                (`sid`,`time`, `name`, `bid`)
-                                VALUES
-                                   (@sid,@time, @name, @bid)";
+                string sql = $@"INSERT INTO `{_prefix}_banlog` (`sid`,`time`, `name`, `bid`)
+                                VALUES (@sid,@time, @name, @bid)";
 
                 using var cmdLog = new MySqlCommand(sql, dbh);
-
-                cmdLog.Parameters.AddWithValue("@sid", serverID);
+                cmdLog.Parameters.AddWithValue("@sid",  serverID);
                 cmdLog.Parameters.AddWithValue("@time", (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-                cmdLog.Parameters.AddWithValue("@name", PlayerName);
-                cmdLog.Parameters.AddWithValue("@bid", bid);
-
-                await cmdLog.ExecuteNonQueryAsync();
+                cmdLog.Parameters.AddWithValue("@name", playerName);
+                cmdLog.Parameters.AddWithValue("@bid",  bid);
+                await cmdLog.ExecuteNonQueryAsync().ConfigureAwait(false);
             }
-        }
-        catch (Exception ex)
-        {
-            _logger?.LogError(ex, "[HLstatsZ] SourceBans admin check failed for {Sid64}", sid64);
-            return false;
+
+        } catch (Exception ex) {
+            _logger?.LogError(ex, "[HLstatsZ] SourceBans checks failed for {Sid64}", sid64);
         }
 
         return isAdmin;
+    }
+
+    static DateTime ComputeEnd(int endsUnix, int lengthMinutes)
+    {
+        if (lengthMinutes <= 0) return DateTime.MaxValue; // permanent
+        if (endsUnix <= 0)      return DateTime.UtcNow;   // clamp
+        var endsUtc = DateTimeOffset.FromUnixTimeSeconds(endsUnix).UtcDateTime;
+        return endsUtc > DateTime.UtcNow ? endsUtc : DateTime.UtcNow;
     }
 
     public static async Task PlayerCheck(CCSPlayerController player)
@@ -572,7 +601,7 @@ public class SourceBans
 
     public static bool Validator(CCSPlayerController? player, ulong steamId = 0, bool earlyStage = false)
     {
-        ulong sid64 = steamId != 0 ? steamId : (player != null && player.IsValid) ? player.SteamID :0;
+        ulong sid64 = steamId != 0 ? steamId : (player != null && player.IsValid) ? player.SteamID : 0;
         if (sid64 == 0) return false;
     
         if (!_userCache.TryGetValue(sid64, out var userData))
@@ -770,11 +799,7 @@ public class SourceBans
 
     public static async Task GetSid()
     {
-        if (!_enabled || string.IsNullOrEmpty(_cachedDBH))
-        {
-            _logger?.LogInformation("[HLstatsZ] SourceBans Get Server ID failed (too-early).");
-            return;
-        }
+        if (!_enabled || string.IsNullOrEmpty(_cachedDBH)) return;
 
         try
         {
@@ -824,7 +849,7 @@ public class SourceBans
         }
 
         if (timeLeft.TotalDays > 1)
-            return $"{(int)timeLeft.TotalDays} days";
+            return $"{(int)timeLeft.TotalDays}d";
 
         if (timeLeft.TotalHours >= 1)
             return $"{(int)timeLeft.TotalHours}h";
@@ -925,7 +950,7 @@ public class SourceBans
             _vote.Remove("kick");
             _userVote.Remove("kick");
             _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "kick", null, vote.target.SteamID, "Vote",  _logger);
-            DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", 3.0f);
+            DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", 5.0f);
             return false; // vote is done
         }
 
@@ -976,7 +1001,7 @@ public class SourceBans
             if (match != null)
             {
                 var command = match.IsSteamWorkshop ? $"host_workshop_map {match.WorkshopId}" : $"changelevel {match.MapName}";
-                DelayedCommand(command, 3.0f);
+                DelayedCommand(command, 5.0f);
             }
             return false;
         }
@@ -1022,7 +1047,7 @@ public class SourceBans
             var command = winner.IsSteamWorkshop
                 ? $"host_workshop_map {winner.WorkshopId}"
                 : $"changelevel {winner.MapName}";
-            DelayedCommand(command, 3.0f);
+            DelayedCommand(command, 5.0f);
 
             _rtv.Clear();
             return false;
