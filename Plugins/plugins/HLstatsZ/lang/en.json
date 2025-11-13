@@ -1,5 +1,7 @@
 {
     "sz_chat.prefix"               : "[HLstats{red}Z{default}]",
+    "sz_chat.admin_say"            : "{yellow}{0}{default}: {1}",
+    "sz_chat.player_say"           : "{olive}{0}{default}: {1}",
     "sz_chat.permission"           : "You don't have enough permission",
     "sz_chat.banning_usage"        : "Usage: !{0} <#userid|name> <minutes|0> <reason>",
     "sz_chat.generic_usage"        : "Usage: !{0} <#userid|name> <reason>",
@@ -103,6 +105,23 @@
     "sz_menu.unban_reason_2"       : "Apologize Accepted",
     "sz_menu.unban_reason_3"       : "Overturned!",
     "sz_menu.unban_reason_4"       : "It wasn't him!",
-    "sz_menu.unban_reason_5"       : "I was testing"
+    "sz_menu.unban_reason_5"       : "I was testing",
+
+    "sz_discord.description"       : "Contest or Appeal? visit →",
+    "sz_discord.title_kick"        : "👢 Kicked",
+    "sz_discord.title_ban"         : "🚫 Banned",
+    "sz_discord.title_gag"         : "🤐 Gagged",
+    "sz_discord.title_mute"        : "🔇 Muted",
+    "sz_discord.title_silence"     : "🤫 Silenced",
+    "sz_discord.title_unban"       : "✅ Unbanned",
+    "sz_discord.title_ungag"       : "😁 Ungagged",
+    "sz_discord.title_unmute"      : "🔊 Unmuted",
+    "sz_discord.title_unsilence"   : "🥳 Unsilenced",
+    "sz_discord.field_steamid"     : "SteamID",
+    "sz_discord.field_reason"      : "Reason",
+    "sz_discord.field_duration"    : "Duration",
+    "sz_discord.field_server_addr" : "Server Address",
+    "sz_discord.field_admin"       : "Server Address",
+    "sz_discord.field_server_name" : "Server",
 }
 

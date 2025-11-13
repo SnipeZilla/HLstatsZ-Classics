@@ -74,16 +74,6 @@ public sealed class DiscordConfig
 {
     public string WebhookUrl          { get; set; } = "";
     public string Username            { get; set; } = "HLstatsZ-Bot";
-    public string Description         { get; set; } = "Contest or Appeal? visit →";
-    public string TitleKick           { get; set; } = "👢 Kicked";
-    public string TitleBan            { get; set; } = "🚫 Banned";
-    public string TitleGag            { get; set; } = "🤐 Gagged";
-    public string TitleMute           { get; set; } = "🔇 Muted";
-    public string TitleSilence        { get; set; } = "🤫 Silenced";
-    public string TitleUnban          { get; set; } = "✅ Unbanned";
-    public string TitleUngag          { get; set; } = "😁 Ungagged";
-    public string TitleUnmute         { get; set; } = "🔊 Unmuted";
-    public string TitleUnsilence      { get; set; } = "🥳 Unsilenced";
     public string ColorPermanent      { get; set; } = "#FF0000";
     public string ColorWithExpiration { get; set; } = "#FF9900";
     public string ColorUnban          { get; set; } = "#00FF00";
@@ -386,7 +376,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     return null;
     }
 
-    private bool HandleAtCommand(CCSPlayerController player, string raw)
+    private bool HandleAtCommand(CCSPlayerController player, string raw, bool isAdmin)
     {
         var text = raw.Length > 1 ? raw.Substring(1).TrimStart() : string.Empty;
         if (string.IsNullOrWhiteSpace(text)) return false;
@@ -400,7 +390,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             SendChatToTeam(CsTeam.CounterTerrorist, Colors(msg));
             return true;
         }
-        if (text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase))
+        if (text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("ts ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(2).Trim();
             if (msg.Length == 0) return true;
@@ -548,7 +538,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (raw.StartsWith("@", StringComparison.Ordinal) && userData.IsAdmin)
         {
-            if (HandleAtCommand(player, raw))
+            if (HandleAtCommand(player, raw, userData.IsAdmin))
                 return HookResult.Handled;
 
             return HookResult.Continue;
@@ -728,12 +718,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 var reason = parts.Length > 1 ? string.Join(' ', parts.Skip(1)).Trim() : "";
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
-                    if (cmd == "@")
-                    {
-                        SendChatToAdmin(Colors($"{reason}"));
-                    } else {
-                        SendChatToAll(Colors($"{reason}"));
-                    }
+                    SendChatToAll(T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{reason}")));
                     return HookResult.Handled;
                 }
             return HookResult.Continue;
@@ -747,7 +732,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 var who = parts.Length > 1 ? parts[1].Trim() : "";
                 reason  = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
-                if (!string.IsNullOrWhiteSpace(reason))
+                if (string.IsNullOrWhiteSpace(reason))
                 {
                     privateChat(player, "sz_chat.generic_usage", cmd);
                     return HookResult.Handled;
@@ -756,8 +741,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (target != null)
                 {
                    if (cmd == "psay")
-                       SendPrivateChat(target, Colors($"{reason}"));
-                   else ShowHintMessage(player, Colors($"{reason}"));
+                       SendPrivateChat(target, T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{reason}")));
+                   else ShowHintMessage(player, T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{reason}")));
                 }
                 else
                 {

@@ -28,16 +28,16 @@ public static class DiscordWebhooks
 
         var title = cmd switch
         {
-            "kick"      => cfg.Discord.TitleKick,
-            "ban"       => cfg.Discord.TitleBan,
-            "banip"     => cfg.Discord.TitleBan,
-            "gag"       => cfg.Discord.TitleGag,
-            "mute"      => cfg.Discord.TitleMute,
-            "silence"   => cfg.Discord.TitleSilence,
-            "unban"     => cfg.Discord.TitleUnban,
-            "ungag"     => cfg.Discord.TitleUngag,
-            "unmute"    => cfg.Discord.TitleUnmute,
-            "unsilence" => cfg.Discord.TitleUnsilence,
+            "kick"      => HLstatsZ.T(null,"sz_discord.title_kick"),
+            "ban"       => HLstatsZ.T(null,"sz_discord.title_ban"),
+            "banip"     => HLstatsZ.T(null,"sz_discord.title_ban"),
+            "gag"       => HLstatsZ.T(null,"sz_discord.title_gag"),
+            "mute"      => HLstatsZ.T(null,"sz_discord.title_mute"),
+            "silence"   => HLstatsZ.T(null,"sz_discord.title_silence"),
+            "unban"     => HLstatsZ.T(null,"sz_discord.title_unban"),
+            "ungag"     => HLstatsZ.T(null,"sz_discord.title_ungag"),
+            "unmute"    => HLstatsZ.T(null,"sz_discord.title_unmute"),
+            "unsilence" => HLstatsZ.T(null,"sz_discord.title_unsilence"),
             _           => ""
         };
         int duration = cmd switch
@@ -79,13 +79,13 @@ public static class DiscordWebhooks
         urlBase = urlBase.TrimEnd('/');
 
         var steamEscaped = Uri.EscapeDataString(steam2);
-        var description = cfg.Discord.Description;
+        var description = HLstatsZ.T(null,"sz_discord.description");
 
         if (!string.IsNullOrWhiteSpace(urlBase))
         {
             var urlWeb = $"{urlBase}/index.php?p={type}&searchText={steamEscaped}";
             var host = new Uri(urlBase).Host;
-            description = $"**{cfg.Discord.Description}** [{host}]({urlWeb})";
+            description = $"**{HLstatsZ.T(null,"sz_discord.description")}** [{host}]({urlWeb})";
             if (admin == null)
                 adminValue = $"[{adminName}]({urlBase})";
         }
