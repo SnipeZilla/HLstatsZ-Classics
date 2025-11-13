@@ -1146,8 +1146,16 @@ public class SourceBans
 
         foreach (var g in groups)
         {
-            admin.PrintToConsole($"  IP: {g.Key} ({g.Count()} players)");
-            foreach (var (sid64, tuple) in g)
+            var onlinePlayers = g.Where(p => {
+                var target = HLstatsZ.FindTarget(p.Key);
+                return target != null && target.IsValid;
+            }).ToList();
+
+            if (onlinePlayers.Count == 0) continue;
+
+            admin.PrintToConsole($"  IP: {g.Key} ({onlinePlayers.Count} online players)");
+
+            foreach (var (sid64, tuple) in onlinePlayers)
             {
                 var target = HLstatsZ.FindTarget(sid64);
                 var Name = HLstatsZ.T(admin,"sz_console.camera_team_error");
@@ -1156,8 +1164,10 @@ public class SourceBans
                 {
                     Name = target.PlayerName;
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
-                } else { continue; }
-                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _,online) = tuple;
+                }
+                else { continue; }
+            
+                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
                 admin.PrintToConsole($"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
             }
         }

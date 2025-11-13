@@ -524,10 +524,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (MenuIsOpen && command == "single_player_pause")
             Instance!._menuManager.DestroyMenu(player);
 
-        if (!command.StartsWith("say"))
+        if (!command.StartsWith("say") && !command.StartsWith("!"))
             return HookResult.Continue;
 
-        var raw = info.ArgCount > 1 ? (info.GetArg(1) ?? string.Empty) : string.Empty;
+        var raw = info.ArgCount == 2 ? info.GetArg(1) :
+                  info.ArgCount > 2 ? info.GetCommandString : string.Empty;
+        //var raw = info.ArgCount > 1 ? (info.GetArg(1) ?? string.Empty) : string.Empty;
         raw = raw.Trim();
         if (raw.Length >= 2 && raw[0] == '"' && raw[^1] == '"')
             raw = raw.Substring(1, raw.Length - 2);
@@ -548,6 +550,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (parts.Length == 0) return HookResult.Continue;
 
         var cmd       = parts[0].ToLowerInvariant();
+
         bool votekick = (SourceBans.VoteKick == "public" || (SourceBans.VoteKick == "admin" && userData.IsAdmin));
         bool votemap  = (SourceBans.VoteMap == "public"  || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
 
