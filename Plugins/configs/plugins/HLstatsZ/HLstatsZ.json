@@ -36,8 +36,9 @@
     }
   },
   "Discord": {
+    "Username": "HLstatsZ",
     "WebhookUrl": "",
-    "Username": "HLstatsZ-Bot",
+    "LogsWebhookUrl": "",
     "ColorPermanent": "#FF0000",
     "ColorWithExpiration": "#FF9900",
     "ColorUnban": "#00FF00",

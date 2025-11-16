@@ -4,6 +4,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
+using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Core.Translations;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
@@ -37,15 +38,18 @@ public enum BanType
 
 public enum AdminFlags
 {
-    None    = 0,
-    Generic = 1 << 0,  // b
-    Kick    = 1 << 1,  // c
-    Ban     = 1 << 2,  // d
-    Unban   = 1 << 3,  // e
-    Slay    = 1 << 4,  // f
-    Map     = 1 << 5,  // g
-    Rcon    = 1 << 6,  // m
-    Root    = 1 << 7,  // z
+    None     = 0,
+    Generic  = 1 << 0,  // b
+    Kick     = 1 << 1,  // c
+    Ban      = 1 << 2,  // d
+    Unban    = 1 << 3,  // e
+    Slay     = 1 << 4,  // f
+    Map      = 1 << 5,  // g
+    Configs  = 1 << 6,  // i
+    BanIp    = 1 << 7,  // o
+    BanPerm  = 1 << 8,  // p
+    UnbanAny = 1 << 9,  // q
+    Root     = 1 << 10, // z
 }
 
 public static class AdminFlagExtensions
@@ -58,7 +62,10 @@ public static class AdminFlagExtensions
         ['e'] = AdminFlags.Unban,
         ['f'] = AdminFlags.Slay,
         ['g'] = AdminFlags.Map,
-        ['m'] = AdminFlags.Rcon,
+        ['i'] = AdminFlags.Configs, // !refresh
+        ['o'] = AdminFlags.BanIp,
+        ['p'] = AdminFlags.BanPerm,
+        ['q'] = AdminFlags.UnbanAny,
         ['z'] = AdminFlags.Root,
     };
 
@@ -101,7 +108,6 @@ public class SourceBans
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
     public static Dictionary<ulong, string> _userNominate = new();
     public static string serverAddr = "";
-    public static string hostName = "";
     public static int serverID = 0;
     public static string VoteKick = "";
     public static string VoteMap = "";
@@ -427,14 +433,8 @@ public class SourceBans
             .ToList();
     }
 
-    public static async Task<bool> WriteBan(CCSPlayerController target, CCSPlayerController admin, BanType type, int durationSeconds, string reason)
+    public static async Task<bool> WriteBan(CCSPlayerController target, int aid, string adminIp, BanType type, int durationSeconds, string reason)
     {
-
-        if (!_userCache.TryGetValue(admin.SteamID, out var adminData) || adminData.Aid <= 0)
-        {
-            _logger?.LogWarning("[HLstatsZ] WriteBan: admin not found in cache");
-            return false;
-        }
 
         if (!_userCache.TryGetValue(target.SteamID, out var targetData))
         {
@@ -446,8 +446,6 @@ public class SourceBans
         string name     = target.PlayerName;
         int created     = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         int ends        = durationSeconds == 0 ? created : created + durationSeconds;
-        int aid         = adminData.Aid;
-        string adminIp  = adminData.IP ?? "";
         string targetIp = targetData.IP ?? "";
         string ureason  = "";
         string table    = "";
@@ -926,6 +924,27 @@ public class SourceBans
         return $"STEAM_0:{authServer}:{authId}";
     }
 
+    // Converts a Steam2 to Steam63 format (17 char).
+    public static ulong ToSteam64(string steam2)
+    {
+        if (string.IsNullOrWhiteSpace(steam2))
+            return 0;
+
+        var parts = steam2.Split(':');
+        if (parts.Length != 3)
+            return 0;
+
+        if (!ulong.TryParse(parts[1], out ulong authServer))
+            return 0;
+
+        if (!ulong.TryParse(parts[2], out ulong authId))
+            return 0;
+
+        const ulong universeOffset = 76561197960265728UL;
+
+        return authId * 2 + authServer + universeOffset;
+    }
+
     public static string? GetClientIp(CCSPlayerController? player)
     {
         var s = player?.IpAddress;
@@ -1124,9 +1143,9 @@ public class SourceBans
         }
     }
 
-    public static void CameraCommand(CCSPlayerController admin, int d = 1)
+    public static void CameraCommand(CCSPlayerController? admin, CommandInfo? command, int d = 1)
     {
-        if (admin == null || !admin.IsValid) return;
+        string reply = "";
 
         // Group by IP
         var groups = _userCache
@@ -1136,13 +1155,20 @@ public class SourceBans
 
         if (groups.Count == 0)
         {
-            admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d_noip"));
+            if (admin!= null)
+                admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d_noip"));
+            else
+                command?.ReplyToCommand(HLstatsZ.Instance!.T("sz_console.camera_d_noip"));
             return;
         }
 
         if ( d == 1)
-             admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d"));
-        else admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera"));
+        {
+            if (admin != null)
+                reply = HLstatsZ.T(admin,"sz_console.camera_d") +"\n";
+            else 
+                reply = HLstatsZ.Instance!.T("sz_console.camera_d") +"\n";
+        }
 
         foreach (var g in groups)
         {
@@ -1152,25 +1178,33 @@ public class SourceBans
             }).ToList();
 
             if (onlinePlayers.Count == 0) continue;
-
-            admin.PrintToConsole($"  IP: {g.Key} ({onlinePlayers.Count} online players)");
+            reply = reply + $"  IP: {g.Key} ({onlinePlayers.Count} online players)\n";
 
             foreach (var (sid64, tuple) in onlinePlayers)
             {
                 var target = HLstatsZ.FindTarget(sid64);
-                var Name = HLstatsZ.T(admin,"sz_console.camera_team_error");
+                var Name = "";
+                if ( admin != null)
+                {
+                    Name = HLstatsZ.T(admin,"sz_console.camera_team_error");
+                } else {
+                    Name = HLstatsZ.Instance!.T("sz_console.camera_team_error");
+                }
                 var Team = "None";
                 if (target != null && target.IsValid)
                 {
                     Name = target.PlayerName;
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
-                }
-                else { continue; }
+                } else { continue; }
             
                 var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
-                admin.PrintToConsole($"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
+                reply = reply+ $"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n";
             }
         }
+        if (admin != null)
+            admin.PrintToConsole(reply);
+        if (command != null)
+            command.ReplyToCommand(reply);
     }
 
 }

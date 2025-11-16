@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Logging;
+using CounterStrikeSharp.API.Modules.Cvars;
 using System.Xml.Linq;
 using System.Collections.Concurrent;
 
@@ -62,7 +63,7 @@ public static class DiscordWebhooks
         var targetName = Clean(userData.PlayerName);
         var steam2 = SourceBans.ToSteam2(steam64);
         reason = Clean(reason);
-        string serverName = SourceBans.hostName ?? "Counter-Strike 2";
+        string serverName = ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
 
         bool _temp = duration < int.MaxValue;
         var durationText = !_temp ? "Permanently" : SourceBans.FormatTimeLeft(null, TimeSpan.FromSeconds(duration));
@@ -126,6 +127,24 @@ public static class DiscordWebhooks
 
         var json = JsonSerializer.Serialize(payload, _json);
         await PostWebhook(cfg.Discord.WebhookUrl, json, logger);
+    }
+
+    public static async Task LogAdminCommand( HLstatsZMainConfig cfg, CCSPlayerController? admin, string command, string arguments)
+    {
+        if (cfg is null || string.IsNullOrWhiteSpace(cfg.Discord.LogsWebhookUrl))
+            return;
+    
+        var adminName = admin == null ? "Console" : Clean(admin.PlayerName);
+        var text = $"{adminName} sent command `{command} {arguments}`";
+    
+        var payload = new
+        {
+            username = cfg.Discord.Username,
+            content  = text
+        };
+    
+        var json = JsonSerializer.Serialize(payload, _json);
+        await PostWebhook(cfg.Discord.LogsWebhookUrl, json);
     }
 
     public static async Task<string?> GetAvatar(ulong steam64, ILogger? logger = null)
