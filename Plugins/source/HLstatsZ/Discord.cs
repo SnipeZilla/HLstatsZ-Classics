@@ -129,20 +129,20 @@ public static class DiscordWebhooks
         await PostWebhook(cfg.Discord.WebhookUrl, json, logger);
     }
 
-    public static async Task LogAdminCommand( HLstatsZMainConfig cfg, CCSPlayerController? admin, string command, string arguments)
+    public static async Task LogAdminCommand( HLstatsZMainConfig cfg, CCSPlayerController? admin, string command, string arguments, bool isAdmin = true)
     {
         if (cfg is null || string.IsNullOrWhiteSpace(cfg.Discord.LogsWebhookUrl))
             return;
-    
+
         var adminName = admin == null ? "Console" : Clean(admin.PlayerName);
-        var text = $"{adminName} sent command `{command} {arguments}`";
-    
+        var level = isAdmin ? "(admin)" : "";
+        var text = $"{level} {adminName} sent command `{command} {arguments}`";
         var payload = new
         {
             username = cfg.Discord.Username,
             content  = text
         };
-    
+
         var json = JsonSerializer.Serialize(payload, _json);
         await PostWebhook(cfg.Discord.LogsWebhookUrl, json);
     }

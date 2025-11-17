@@ -404,7 +404,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                     Instance!.Config,
                                                     player,
                                                     "@",
-                                                    $"{text}"
+                                                    $"{text}",
+                                                    isAdmin
                                                 );
 
             return true;
@@ -580,7 +581,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var parts = text.Split(' ', 4, StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length == 0) return HookResult.Continue;
 
-        var cmd       = parts[0].ToLowerInvariant();
+        var cmd = parts[0].ToLowerInvariant();
 
         bool votekick = (SourceBans.VoteKick == "public" || (SourceBans.VoteKick == "admin" && userData.IsAdmin));
         bool votemap  = (SourceBans.VoteMap == "public"  || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
@@ -742,13 +743,16 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // ---- Handle Admin command ----
-        if (!userData.IsAdmin) return HookResult.Continue;
-
         var adminFlags = userData.Flags.ToFlags();
 
         switch (cmd)
         {
             case "say":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 var reason = parts.Length > 1 ? string.Join(' ', parts.Skip(1)).Trim() : "";
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
@@ -759,6 +763,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
             case "hsay":
             case "psay":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 if (parts.Length < 2) 
                 {
                     privateChat(player, "sz_chat.generic_usage",cmd);
@@ -785,6 +794,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
 
             case "admin":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 if (parts.Length == 1)
                 {
                     AdminMenu(player);
@@ -793,6 +807,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Continue;
 
             case "kick":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Kick))
                 {
                     privateChat(player, "sz_chat.permission");
@@ -827,6 +846,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
 
             case "map":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Map))
                 {
                     privateChat(player, "sz_chat.permission");
@@ -847,36 +871,80 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "mute":
             case "silence":
             case "slay":
-            if ((cmd == "ban" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Ban)) ||
-                (cmd == "banip" && !adminFlags.Has(AdminFlags.Root | AdminFlags.BanIp)) ||
-                (cmd == "slay" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Slay)))
-            {
-                privateChat(player, "sz_chat.permission");
-                return HookResult.Handled;
-            }
-            var duration = parts.Length > 2 ? parts[2].Trim() : "1";
-            reason  = parts.Length > 3 ? string.Join(' ', parts.Skip(3)).Trim() : "";
-            if (cmd == "slay")
-            {
-                if (parts.Length == 1)
-                {
-                    privateChat(player, "sz_chat.generic_usage", cmd);
-                    return HookResult.Handled;
-                }
-            } else {
-                if (parts.Length < 3 || !(int.TryParse(duration, out int min) && min >= 0)) 
-                {
-                    privateChat(player, "sz_chat.banning_usage", cmd);
-                    return HookResult.Handled;
-                }
-                if (min > SourceBans.Durations[0]) 
-                {
-                    privateChat(player, "sz_chat.ban_exceeds", cmd, min);
-                    return HookResult.Handled;
-                }
-                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm) && min == 0)
+                if (!userData.IsAdmin)
                 {
                     privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if ((cmd == "ban" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Ban)) ||
+                    (cmd == "banip" && !adminFlags.Has(AdminFlags.Root | AdminFlags.BanIp)) ||
+                    (cmd == "slay" && !adminFlags.Has(AdminFlags.Root | AdminFlags.Slay)))
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                var duration = parts.Length > 2 ? parts[2].Trim() : "1";
+                reason  = parts.Length > 3 ? string.Join(' ', parts.Skip(3)).Trim() : "";
+                if (cmd == "slay")
+                {
+                    if (parts.Length == 1)
+                    {
+                        privateChat(player, "sz_chat.generic_usage", cmd);
+                        return HookResult.Handled;
+                    }
+                } else {
+                    if (parts.Length < 3 || !(int.TryParse(duration, out int min) && min >= 0)) 
+                    {
+                        privateChat(player, "sz_chat.banning_usage", cmd);
+                        return HookResult.Handled;
+                    }
+                    if (min > SourceBans.Durations[0]) 
+                    {
+                        privateChat(player, "sz_chat.ban_exceeds", cmd, min);
+                        return HookResult.Handled;
+                    }
+                    if (!adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm) && min == 0)
+                    {
+                        privateChat(player, "sz_chat.permission");
+                        return HookResult.Handled;
+                    }
+                    if (reason.Length < 3)
+                    {
+                        privateChat(player, "sz_chat.short_reason");
+                        return HookResult.Handled;
+                    }
+                }
+                who    = parts.Length > 1 ? parts[1].Trim() : "";
+                target = FindTarget(who);
+                if (target != null && target.IsValid)
+                {
+                    AdminAction(player, cmd, target, reason, null, int.Parse(duration)*60);
+                }
+                else
+                {
+                    privateChat(player, "sz_chat.target_notfound", who);
+                }
+            return HookResult.Handled;
+
+            case "unban":
+            case "ungag":
+            case "unmute":
+            case "unsilence":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                //length = parts.Length > 1 ? parts[1] : "1";
+                reason  = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
+                if (parts.Length < 3) 
+                {
+                    privateChat(player, "sz_chat.generic_usage", cmd);
                     return HookResult.Handled;
                 }
                 if (reason.Length < 3)
@@ -884,62 +952,33 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     privateChat(player, "sz_chat.short_reason");
                     return HookResult.Handled;
                 }
-            }
-            who    = parts.Length > 1 ? parts[1].Trim() : "";
-            target = FindTarget(who);
-            if (target != null && target.IsValid)
-            {
-                AdminAction(player, cmd, target, reason, null, int.Parse(duration)*60);
-            }
-            else
-            {
-                privateChat(player, "sz_chat.target_notfound", who);
-            }
-            return HookResult.Handled;
-
-            case "unban":
-            case "ungag":
-            case "unmute":
-            case "unsilence":
-            if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
-            {
-                privateChat(player, "sz_chat.permission");
-                return HookResult.Handled;
-            }
-            //length = parts.Length > 1 ? parts[1] : "1";
-            reason  = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
-            if (parts.Length < 3) 
-            {
-                privateChat(player, "sz_chat.generic_usage", cmd);
-                return HookResult.Handled;
-            }
-            if (reason.Length < 3)
-            {
-                privateChat(player, "sz_chat.short_reason");
-                return HookResult.Handled;
-            }
-            who    = parts.Length > 1 ? parts[1].Trim() : "";
-            target = FindTarget(who);
-            if (target != null && target.IsValid)
-            {
-                AdminAction(player, cmd, target, reason,null);
-            }
-            else
-            {
-                privateChat(player, "sz_chat.target_notfound", who);
-            }
+                who    = parts.Length > 1 ? parts[1].Trim() : "";
+                target = FindTarget(who);
+                if (target != null && target.IsValid)
+                {
+                    AdminAction(player, cmd, target, reason,null);
+                }
+                else
+                {
+                    privateChat(player, "sz_chat.target_notfound", who);
+                }
             return HookResult.Handled;
 
             case "team":
-                 if (parts.Length < 3)
-                 {
-                     privateChat(player, "sz_chat.team_usage", cmd);
-                     return HookResult.Handled;
-                 }
-                 var name = parts[2].ToLowerInvariant();
-                 var team  = 0;
-                 switch (name)
-                 {
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if (parts.Length < 3)
+                {
+                    privateChat(player, "sz_chat.team_usage", cmd);
+                    return HookResult.Handled;
+                }
+                var name = parts[2].ToLowerInvariant();
+                var team  = 0;
+                switch (name)
+                {
                     case "1":
                     case "s":
                     case "spec":
@@ -977,10 +1016,20 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
             case "players":
             case "camera":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 SourceBans.CameraCommand(player, null, cmd == "camera" ? 1 : 0);
             return HookResult.Handled;
 
             case "refresh":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
                 if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Configs))
                 {
                     privateChat(player, "sz_chat.permission");
@@ -1098,8 +1147,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     [ConsoleCommand("css_unmute")]
     [ConsoleCommand("css_unsilence")]
     [ConsoleCommand("css_unban")]
-    public void OnCssCommand(CCSPlayerController? _, CommandInfo command)
+    [CommandHelper(whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnCssCommand(CCSPlayerController? player, CommandInfo command)
     {
+        if (player != null) return;
+
         var cmd = command.ArgByIndex(0).StartsWith("css_") ?
                   command.ArgByIndex(0).Substring(4) : command.ArgByIndex(0);
         CCSPlayerController? target = null;
@@ -1132,7 +1184,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
             SourceBans.CameraCommand(null, command, cmd == "camera" ? 1 : 0);
         } else {
-            AdminAction(null, cmd, target, args, command, number);
+            AdminAction(null, cmd, target, args, command, number, true);
         }
     }
 
@@ -1737,7 +1789,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     }
 
-    public static void AdminAction(CCSPlayerController? admin,string action, CCSPlayerController? target, string? args, CommandInfo? command, int number = 0)
+    public static void AdminAction(CCSPlayerController? admin,string action, CCSPlayerController? target, string? args, CommandInfo? command, int number = 0, bool console = false)
     {
         var Name = "";
         bool isAdmin = false;
@@ -1754,8 +1806,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             Ip         = userData.IP;
             adminFlags = userData.Flags.ToFlags();
 
-        } else if (command != null) {
-
+        } else if (command != null && console == true) {
             Name       = "Console";
             isAdmin    = true;
             Ip         = GetLocalIPAddress();
@@ -1775,6 +1826,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
             case "kick": {
                 if (target == null || !target.IsValid) return;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Kick))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 target.CommitSuicide(false, true);
                 if (SourceBans._userCache.TryGetValue(target.SteamID, out var targetData))
                 {
@@ -1814,6 +1870,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "mute":
             case "silence": {
                 if (target == null || !target.IsValid) return;
+                if((cmd == "banip" && !adminFlags.Has(AdminFlags.Root | AdminFlags.BanIp)) ||
+                   (!adminFlags.Has(AdminFlags.Root | AdminFlags.Ban)))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 type = cmd == "ban" ? BanType.Ban :
                        cmd == "banip" ? BanType.Banip :
                        cmd == "gag" ? BanType.Gag :
@@ -1899,7 +1961,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "unsilence":
             case "unban": {
                 page=1;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 if (target == null || !target.IsValid) return;
+
                 type = cmd == "ungag" ? BanType.Gag :
                        cmd == "unmute" ? BanType.Mute :
                        cmd == "unsilence" ? BanType.Silence : BanType.Ban;
@@ -1996,6 +2064,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     SourceBans.StartVoteTimer();
                     return;
                 }
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Map))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,
@@ -2008,6 +2081,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             break; }
             case "slay":
                 if (target == null || !target.IsValid) return;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Slay))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 target.CommitSuicide(false, true);
                 SourceBans.UpdateBanUser(target.SteamID, BanType.Slay, 0, false, Aid);
                 if (admin == null)
@@ -2022,6 +2100,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             break;
             case "team": {
                 if (target == null || !target.IsValid) return;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Generic))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
                 CsTeam csTeam;
                 var team = "";
                 switch ((TeamNum)number)
