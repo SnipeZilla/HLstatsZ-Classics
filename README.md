@@ -25,7 +25,7 @@ next
 ```
 ## SourceBans
 ```
-@ (chat to all admin)
+@ (chat to all admin), @s, @ct, @t, @<username>
 say (chat to all)
 psay (private chat)
 hsay (private hint)
@@ -42,9 +42,9 @@ ungag
 votekick
 slay
 team
-players, camera
-players -d, camera -d (only duplicate ips)
-refresh
+camera (duplo ip)
+players (list players)
+refresh (cache)
 ```
 ## MapChooser
 ```
@@ -62,7 +62,10 @@ rtv
 | e    | Unban players                   |
 | f    | Slay players                    |
 | g    | Change map                      |
-| m    | RCON access(Use for perma ban)  |
+| i    | Configs (!refresh)              |
+| o    | Banip                           |
+| p    | Ban permanently                 |
+| q    | Unban anyone                    |
 | z    | Root admin (full access)        |
 
 <img width="251" height="154" alt="image" src="https://github.com/user-attachments/assets/cfff1a70-e269-4cc3-b856-b9b2157c7944" />
@@ -109,8 +112,9 @@ rtv
     }
   },
   "Discord": {
-    "WebhookUrl": "https://discord.com/api/webhooks/........................................",
     "Username": "HLstatsZ-Bot",
+    "WebhookUrl": "https://discord.com/api/webhooks/................",
+    "LogsWebhookUrl": "https://discord.com/api/webhooks/................",
     "Description": "Contest or Appeal? visit →",
     "TitleKick": "👢 Kicked",
     "TitleBan": "🚫 Banned",
