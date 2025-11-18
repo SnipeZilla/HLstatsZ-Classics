@@ -93,10 +93,10 @@ public static class DiscordWebhooks
 
         var fields = new List<object>
         {
-            new { name = "SteamID", value = $"`{steam2}`", inline = true },
-            new { name = "Reason",   value = $"`{reason}`", inline = true },
-            new { name = "Duration", value = $"`{durationText}`", inline = true },
-            new { name = "Server Address", value = $"`{SourceBans.serverAddr}`", inline = true }
+            new { name = HLstatsZ.T(null,"sz_discord.field_steamid"), value = $"`{steam2}`", inline = true },
+            new { name = HLstatsZ.T(null,"sz_discord.field_reason"),   value = $"`{reason}`", inline = true },
+            new { name = HLstatsZ.T(null,"sz_discord.field_duration"), value = $"`{durationText}`", inline = true },
+            new { name = HLstatsZ.T(null,"sz_discord.field_server_addr"), value = $"`{SourceBans.serverAddr}`", inline = true }
         };
 
         if (cfg.Discord.ShowAdmin)

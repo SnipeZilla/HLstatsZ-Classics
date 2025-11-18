@@ -209,7 +209,7 @@ public class SourceBans
                 SELECT ends, length, RemovedOn, type, aid, bid
                 FROM `{_prefix}_bans`
                 WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
-                  AND RemovedOn = 0
+                  AND  (RemovedOn IS NULL OR RemovedOn = 0)
                   AND (created = ends OR ends > UNIX_TIMESTAMP())
                 ORDER BY ends DESC
                 LIMIT 1;", dbh))
@@ -257,7 +257,7 @@ public class SourceBans
                 FROM `{_prefix}_comms`
                 WHERE authid IN (@s0, @s1, @s64)
                   AND type IN (1, 2)
-                  AND RemovedOn = 0
+                  AND (RemovedOn IS NULL OR RemovedOn = 0)
                   AND (created = ends OR ends > UNIX_TIMESTAMP())
                 ORDER BY ends DESC;", dbh))
             {
@@ -602,9 +602,9 @@ public class SourceBans
         }
     }
 
-    public static async Task<bool> WriteUnBan(CCSPlayerController target, CCSPlayerController? admin, BanType typeToRemove, string ureason)
+    public static async Task<bool> WriteUnBan(ulong targetSteamID, CCSPlayerController? admin, BanType typeToRemove, string ureason)
     {
-        _userCache.TryGetValue(target.SteamID, out var targetData);
+        _userCache.TryGetValue(targetSteamID, out var targetData);
         string removeType = "E";
         int removedBy = 0;
         if (admin != null && _userCache.TryGetValue(admin.SteamID, out var adminData))
@@ -632,7 +632,7 @@ public class SourceBans
             ORDER BY ends DESC
             LIMIT 1;", dbh);
 
-        updateCmd.Parameters.AddWithValue("@authid", ToSteam2(target.SteamID));
+        updateCmd.Parameters.AddWithValue("@authid", ToSteam2(targetSteamID));
         updateCmd.Parameters.AddWithValue("@removedBy", removedBy);
         updateCmd.Parameters.AddWithValue("@removeType", removeType);
         updateCmd.Parameters.AddWithValue("@removedOn", removedOn);
@@ -645,7 +645,7 @@ public class SourceBans
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "[HLstatsZ] WriteUnBan exception for {Target}", target?.PlayerName);
+            _logger?.LogError(ex, "[HLstatsZ] WriteUnBan exception for {Target}", targetData.PlayerName);
             return false;
         }
     }
@@ -759,6 +759,7 @@ public class SourceBans
 
         foreach (var key in keysToRemove)
         {
+_logger?.LogInformation($"{key}");
             _userCache.TryRemove(key, out _);
         }
     }
@@ -1156,18 +1157,23 @@ public class SourceBans
         if (groups.Count == 0)
         {
             if (admin!= null)
-                admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_d_noip"));
+                admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_noip"));
             else
-                command?.ReplyToCommand(HLstatsZ.Instance!.T("sz_console.camera_d_noip"));
+                command?.ReplyToCommand(HLstatsZ.Instance!.T("sz_console.camera_noip"));
             return;
         }
 
         if ( d == 1)
         {
             if (admin != null)
-                reply = HLstatsZ.T(admin,"sz_console.camera_d") +"\n";
+                reply = HLstatsZ.T(admin,"sz_console.camera") +"\n";
             else 
-                reply = HLstatsZ.Instance!.T("sz_console.camera_d") +"\n";
+                reply = HLstatsZ.Instance!.T("sz_console.camera") +"\n";
+        } else {
+            if (admin != null)
+                reply = HLstatsZ.T(admin,"sz_console.players") +"\n";
+            else 
+                reply = HLstatsZ.Instance!.T("sz_console.players") +"\n";
         }
 
         foreach (var g in groups)

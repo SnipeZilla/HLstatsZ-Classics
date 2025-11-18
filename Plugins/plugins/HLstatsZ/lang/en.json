@@ -46,10 +46,11 @@
     "sz_chat.player_record"        : "{yellow}{0}{default} has no track record (bot?)",
     "sz_chat.sourcebans_website"   : "Contest or Appeal? visit → {0}",
 
-    "sz_console.camera"            : "IP report:",
-    "sz_console.camera_d"          : "Duplicate IP report:",
-    "sz_console.camera_d_noip"     : "No Duplicate IPs found",
+    "sz_console.players"           : "IP report:",
+    "sz_console.camera"            : "Duplicate IP report:",
+    "sz_console.camera_noip"       : "No Duplicate IPs found",
     "sz_console.camera_team_error" : "Unknown Team → player left",
+    "sz_console.refresh"           : "Players cache refreshed",
 
     "sz_menu.players"              : "Players",
     "sz_menu.vote"                 : "Vote",
