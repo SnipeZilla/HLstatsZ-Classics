@@ -32,6 +32,11 @@ public class HLstatsZMainConfig : IBasePluginConfig
     public int Version { get; set; } = 2;
 
     [JsonPropertyName("SourceBans")] public SourceBansConfig SourceBans { get; set; } = new();
+
+    [JsonPropertyName("Maps")] public MapsConfig Maps { get; set; } = new();
+
+    [JsonPropertyName("Avertissements")] public List<AvertissementEntry> Avertissements { get; set; } = new();
+
     [JsonPropertyName("Discord")] public DiscordConfig Discord { get; set; } = new();
 }
 
@@ -46,15 +51,18 @@ public class SourceBansConfig
     [JsonPropertyName("Password")] public string Password { get; set; } = "";
     [JsonPropertyName("Website")] public string Website { get; set; } = "";
     [JsonPropertyName("VoteKick")] public string VoteKick { get; set; } = "public";
-    [JsonPropertyName("VoteMap")] public string VoteMap { get; set; } = "private";
-    [JsonPropertyName("Nominate")] public bool Nominate { get; set; } = false;
     [JsonPropertyName("Chat_Ban_Duration_Max")] public int Chat_Ban_Duration_Max { get; set; } = 10080;
     [JsonPropertyName("Menu_Ban1_Duration")] public int Menu_Ban1_Duration { get; set; } = 15;
     [JsonPropertyName("Menu_Ban2_Duration")] public int Menu_Ban2_Duration { get; set; } = 60;
     [JsonPropertyName("Menu_Ban3_Duration")] public int Menu_Ban3_Duration { get; set; } = 1440;
     [JsonPropertyName("Menu_Ban4_Duration")] public int Menu_Ban4_Duration { get; set; } = 10080;
     [JsonPropertyName("Menu_Ban5_Duration")] public int Menu_Ban5_Duration { get; set; } = 0;
+}
 
+public class MapsConfig
+{
+    [JsonPropertyName("VoteMap")] public string VoteMap { get; set; } = "public";
+    [JsonPropertyName("Nominate")] public bool Nominate { get; set; } = false;
     [JsonPropertyName("MapCycle")] public MapCycleSection MapCycle { get; set; } = new();
 }
 
@@ -67,7 +75,13 @@ public class MapCycleSection
 public class MapCycleConfig
 {
     [JsonPropertyName("Maps")] public List<string> Maps { get; set; } = new();
-    [JsonPropertyName("WorkShop")] public Dictionary<string, string> WorkShop { get; set; } = new();
+}
+
+public class AvertissementEntry
+{
+    [JsonPropertyName("Message")] public string Message { get; set; } = "";
+    [JsonPropertyName("PrintType")] public string PrintType { get; set; } = "say";
+    [JsonPropertyName("EveryMinutes")] public int EveryMinutes { get; set; } = 5;
 }
 
 public sealed class DiscordConfig
@@ -132,7 +146,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
         RegisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         RegisterEventHandler<EventBombDefused>(OnBombDefused);
-        //RegisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
         RegisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
         RegisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         RegisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -160,12 +173,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             SourceBans._canVote = true;
         }
 
+        SourceBans.InitAvertissements(Config);
+
         SourceBans._cleanupTimer?.Kill();
-        if (SourceBans._enabled)
-            SourceBans._cleanupTimer = new GameTimer(60.0f,
-                                            () => SourceBans.CleanupExpiredUsers(),
-                                            TimerFlags.REPEAT
-            );
+        SourceBans._cleanupTimer = new GameTimer(60.0f,
+                                        () => SourceBans.CleanupExpiredUsers(),
+                                        TimerFlags.REPEAT
+        );
     }
 
     public override void Unload(bool hotReload)
@@ -179,7 +193,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
         DeregisterEventHandler<EventBombAbortdefuse>(OnBombAbortdefuse);
         DeregisterEventHandler<EventBombDefused>(OnBombDefused);
-        //DeregisterEventHandler<EventPlayerConnect>(OnPlayerConnect);
         DeregisterEventHandler<EventPlayerConnectFull>(OnPlayerConnectFull);
         DeregisterEventHandler<EventPlayerDisconnect>(OnPlayerDisconnect);
         DeregisterEventHandler<EventPlayerDeath>(OnPlayerDeath);
@@ -193,7 +206,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         SourceBans._voteTimer = null;
         SourceBans._DelayedCommand?.Kill();
         SourceBans._DelayedCommand = null;
-
     }
 
     // ------------------ Core Logic ------------------
@@ -228,6 +240,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["silver"]      = '\x0A',
         ["bluegrey"]    = '\x0A',
         ["lightred"]    = '\x0F',
+    };
+
+    private static readonly Dictionary<string, string> CenterColorCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["default"]     = "</font>",
+        ["white"]       = "<font color='#FFFFFF'>",
+        ["red"]         = "<font color='#FF0000'>",
+        ["green"]       = "<font color='#00FF00'>",
+        ["blue"]        = "<font color='#007BFF'>",
+        ["yellow"]      = "<font color='#FFFF00'>",
+        ["orange"]      = "<font color='#FFA500'>",
+        ["purple"]      = "<font color='#800080'>",
+        ["pink"]        = "<font color='#FF69B4'>",
+        ["grey"]        = "<font color='#CCCCCC'>",
+        ["silver"]      = "<font color='#C0C0C0'>",
+        ["gold"]        = "<font color='#FFD700'>",
+        ["lime"]        = "<font color='#32CD32'>",
+        ["aqua"]        = "<font color='#00FFFF'>",
     };
 
     private static readonly Regex ColorRegex = new(@"\{(\w+)\}", RegexOptions.Compiled);
@@ -268,6 +298,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
             var key = m.Groups[1].Value;
             return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
+        });
+    }
+
+    public static string CenterColors(string input)
+    {
+        return ColorRegex.Replace(input, m =>
+        {
+            var key = m.Groups[1].Value;
+            return CenterColorCodes.TryGetValue(key, out var html) ? html : m.Value;
         });
     }
 
@@ -458,47 +497,47 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private bool HandleAtCommand(CCSPlayerController player, string raw, bool isAdmin)
     {
-        var text = raw.Length > 1 ? raw.Substring(1).TrimStart() : string.Empty;
+        var text = raw.Length > 1 ? raw.Substring(1) : string.Empty;
         if (string.IsNullOrWhiteSpace(text)) return false;
 
         var msg = "";
-        string local = "";
+        string local = isAdmin ? "sz_chat.admin_say" : "sz_chat.player_say";
+        var firstSpace = text.IndexOf(' ');
 
         // @ or @all <message>  -> to admins
-        var firstSpace = text.IndexOf(' ');
-        if (firstSpace < 0)
+        if (text.StartsWith(" "))
         {
 
-            local = isAdmin ? "sz_chat.admin_say" : "sz_chat.player_say";
-            SendChatToAdmin(T(player, "sz_chat.prefix") + " " + T(player,local,player.PlayerName,Colors($"{text}")));
+            var report = text.Trim();
+            if (report.Length == 0) return true;
+
+            SendChatToAdmin(T(player, "sz_chat.prefix") + " " + T(player, local, player.PlayerName, Colors(report)));
             _ = DiscordWebhooks.LogAdminCommand(
                                                     Instance!.Config,
                                                     player,
                                                     "@",
-                                                    $"{text}",
+                                                    Colors(report),
                                                     isAdmin
                                                 );
 
             return true;
         }
 
-        if (!isAdmin) return false;
-
-        if (text.StartsWith("s ", StringComparison.OrdinalIgnoreCase))
+        if (isAdmin && text.StartsWith("s ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(2).Trim();
             if (msg.Length == 0) return true;
             SendChatToTeam(CsTeam.Spectator,T(player, "sz_chat.prefix") + " " +  T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{msg}")));
             return true;
         }
-        if (text.StartsWith("ct ", StringComparison.OrdinalIgnoreCase))
+        if (isAdmin && text.StartsWith("ct ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(3).Trim();
             if (msg.Length == 0) return true;
             SendChatToTeam(CsTeam.CounterTerrorist,T(player, "sz_chat.prefix") + " " +  T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{msg}")));
             return true;
         }
-        if (text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("ts ", StringComparison.OrdinalIgnoreCase))
+        if (isAdmin && text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("ts ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(2).Trim();
             if (msg.Length == 0) return true;
@@ -512,13 +551,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (who.Equals("all", StringComparison.OrdinalIgnoreCase))
         {
-            if (isAdmin)
-                local = isAdmin ? "sz_chat.admin_say" : "sz_chat.player_say";
-            SendChatToAdmin(T(player, "sz_chat.prefix") + " " + T(player,local,player.PlayerName,Colors($"{msg}")));
+            SendChatToAdmin(T(player, "sz_chat.prefix") + " " + T(player,local,player.PlayerName,Colors(msg)));
+            _ = DiscordWebhooks.LogAdminCommand(
+                                                    Instance!.Config,
+                                                    player,
+                                                    "@",
+                                                    Colors(msg),
+                                                    isAdmin
+                                                );
             return true;
         }
 
         // player
+        if (!isAdmin) return false;
         var target = FindTarget(who);
         if (target != null && target.IsValid && !target.IsBot)
         {
@@ -545,6 +590,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (player?.IsValid == true && player?.IsBot == false)
             {
                 player.PrintToChat(message);
+            }
+        }
+    }
+
+    public static void SendHTMLToAll(string message, int duration = 5)
+    {
+        var players = Utilities.GetPlayers();
+        foreach (var player in players)
+        {
+            if (player?.IsValid == true && player?.IsBot == false)
+            {
+                player.PrintToCenterHtml(message, duration);
             }
         }
     }
@@ -692,7 +749,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 builder.Add("Next Rank", p => _ = SendLog(p, "next", "say"));
                 builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
             }
-            if (SourceBans._enabled && (votekick || votemap))
+            if ((SourceBans._enabled && votekick) || votemap)
                 builder.Add(T(player,"sz_menu.vote"), p => VoteMenu(p));
 
             if (userData.IsAdmin)
@@ -703,12 +760,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Handled;
         }
 
-        // ----- SourceBans -----
-        if (!SourceBans._enabled)
-            return HookResult.Continue;
-
-
-        // ----- SourceBans Public Commands -----
+        // ----- Public Commands -----
         if (!prefixed) return HookResult.Continue;
 
         switch (cmd)
@@ -749,6 +801,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 AdminAction(player, cmd, player, map, null);
             return HookResult.Handled;
             case "votekick":
+                if (!SourceBans._enabled)
+                    return HookResult.Continue;
                 if (!votekick)
                 {
                     privateChat(player, "sz_chat.permission");
@@ -812,6 +866,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 AdminAction(player, cmd, player, mapNom, null);
             return HookResult.Handled;
         }
+
+        // ----- SourceBans -----
+        if (!SourceBans._enabled)
+            return HookResult.Continue;
 
         // ---- Handle Admin command ----
         var adminFlags = userData.Flags.ToFlags();
@@ -1324,10 +1382,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void VoteMenu(CCSPlayerController player)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid) return;
+        if (player == null || !player.IsValid) return;
 
         SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
-        bool votekick = (SourceBans.VoteKick == "public" || (SourceBans.VoteKick == "admin" && userData.IsAdmin));
+        bool votekick = (SourceBans.VoteKick == "public" || (SourceBans.VoteKick == "admin" && userData.IsAdmin)) && SourceBans._enabled;
         bool votemap = (SourceBans.VoteMap == "public" || (SourceBans.VoteMap == "admin" && userData.IsAdmin));
 
         var builder = new HLZMenuBuilder("Vote Menu");
@@ -1335,7 +1393,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
             builder.Add(T(player,"sz_menu.player_kick"), _ => VotePlayer(player));
         } else {
-            builder.AddNoOp(T(player,"sz_menu.player_kick"));
+            if (votekick)
+                builder.AddNoOp(T(player,"sz_menu.player_kick"));
         }
         if (SourceBans.Nominate && !SourceBans._userNominate.ContainsKey(player.SteamID) && SourceBans._canVote)
         {
@@ -1381,7 +1440,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void VoteMap(CCSPlayerController player, string type)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
+        if (player == null || !player.IsValid)
             return;
 
         var title = type == "vote"? "Vote Map" : "Nominate";
@@ -1444,7 +1503,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void VoteActive(string type, CCSPlayerController player, CCSPlayerController? target, string? mapname)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
+        if (player == null || !player.IsValid)
             return;
         string title = type == "check" ? "Vote Menu" : "Cast Vote";
         var builder = new HLZMenuBuilder(title).NoNumber();
@@ -1536,9 +1595,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         builder.Open(player, Instance!._menuManager);
     }
 
-    public static void AdminPlayer(CCSPlayerController player, int type = 0)
+    public static void AdminPlayer(CCSPlayerController admin, int type = 0)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
+        if (!SourceBans._enabled || admin == null || !admin.IsValid)
             return;
 
         var title = type == 0 ? "Admin Players" : "Admin Unban";
@@ -1546,37 +1605,43 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var count =0;
         var name = "";
         var label = "";
-        foreach (var target in Utilities.GetPlayers())
-        {
-            if (target == null || target?.IsValid != true) continue;
-            SourceBans._userCache.TryGetValue(target.SteamID, out var userData);
 
-            switch (type)
-            {
-                case 0:
+        switch (type)
+        {
+            case 0:
+                foreach (var target in Utilities.GetPlayers())
+                {
+                    if (target == null || target?.IsValid != true) continue;
+                    SourceBans._userCache.TryGetValue(target.SteamID, out var userData);
                     if ((userData.Ban & (BanType.Kick | BanType.Ban | BanType.Banip))>0 && userData.ExpiryBan > DateTime.UtcNow) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"#{target.Slot} - {name}";
-                    //if (player != target)
-                        builder.Add(label, _ => AdminCMD(player, target));
-                    //else
-                       // builder.AddNoOp(label);
-                break;
-                case 1:
-                    if (userData.Ban == BanType.None) continue;
+                    if (admin != target)
+                        builder.Add(label, _ => AdminCMD(admin, target));
+                    else
+                       builder.AddNoOp(label);
+                }
+            break;
+            case 1:
+                foreach (var kvp in SourceBans._userCache)
+                {
+                    var steamId = kvp.Key;
+                    var data = kvp.Value;
+                    var offline = data.Connected == false ? " (offline)" : "";
+                    if (data.Ban == BanType.None) continue;
                     count++;
-                    name = Instance?.Trunc(target.PlayerName, 20);
-                    label = $"{target.Slot} - {name}";
-                    builder.Add(label, _ => AdminCMD2(player, target));
-                break;
-                default: break;
+                    name = Instance?.Trunc(data.PlayerName, 20);
+                    label = $"{name}{offline}";
+                    builder.Add(label, _ => AdminCMD2(admin, steamId));
+                }
+            break;
+            default: break;
 
-            }
         }
         if (count == 0 && type == 1)
-           builder.AddNoOp(T(player,"sz_menu.noban"));
+           builder.AddNoOp(T(admin,"sz_menu.noban"));
 
-        builder.Open(player, Instance!._menuManager);
+        builder.Open(admin, Instance!._menuManager);
 
     }
 
@@ -1727,15 +1792,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         builder.Open(player, Instance!._menuManager);
     }
 
-    public static void AdminCMD2(CCSPlayerController player,CCSPlayerController target)
+    public static void AdminCMD2(CCSPlayerController player,ulong targetSid64)
     {
         if (!SourceBans._enabled || player == null || !player.IsValid)
             return;
 
-        var name = Instance?.Trunc(target.PlayerName,10);
-        var builder = new HLZMenuBuilder($"{name}");
-        SourceBans._userCache.TryGetValue(target.SteamID, out var targetData);
+        SourceBans._userCache.TryGetValue(targetSid64, out var targetData);
         SourceBans._userCache.TryGetValue(player.SteamID, out var userData);
+        var name = Instance?.Trunc(targetData.PlayerName,10);
+        var builder = new HLZMenuBuilder($"{name}");
         var adminFlags = userData.Flags.ToFlags();
         bool superAdmin = adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm);
         DateTime now = DateTime.UtcNow;
@@ -1752,7 +1817,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var label = T(player,"sz_menu.unban", remaining);
             if ((adminFlags.Has(AdminFlags.Root | AdminFlags.Unban) && _temp) || adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm))
             {
-                builder.Add(label, _ => AdminCMD3(player,target, "unban", 0, "unban"));
+                builder.Add(label, _ => AdminCMD3(player,null, "unban", 0, "unban", targetSid64));
             } else {
                 builder.AddNoOp(label);
             }
@@ -1763,7 +1828,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var label = T(player,"sz_menu.ungag", remaining);
              if (adminFlags.Has(AdminFlags.Root | AdminFlags.Unban) || superAdmin)
             {
-                builder.Add(label, _ => AdminCMD3(player,target, "unban", 0, "ungag"));
+                builder.Add(label, _ => AdminCMD3(player, null, "unban", 0, "ungag",targetSid64));
             } else {
                 builder.AddNoOp(label);
             }
@@ -1774,7 +1839,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var label = T(player,"sz_menu.unmute", remaining);
             if (adminFlags.Has(AdminFlags.Root | AdminFlags.Unban) || superAdmin)
             {
-                builder.Add(label, _ => AdminCMD3(player,target, "unban", 0, "unmute"));
+                builder.Add(label, _ => AdminCMD3(player,null, "unban", 0, "unmute", targetSid64));
             } else {
                 builder.AddNoOp(label);
             }
@@ -1785,7 +1850,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var label = T(player,"sz_menu.unsilence", remaining);
             if (adminFlags.Has(AdminFlags.Root | AdminFlags.Unban) || superAdmin)
             {
-                builder.Add(label, _ => AdminCMD3(player,target, "unban", 0, "unsilence"));
+                builder.Add(label, _ => AdminCMD3(player,null, "unban", 0, "unsilence", targetSid64));
             } else {
                 builder.AddNoOp(label);
             }
@@ -1795,17 +1860,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     }
 
-    public static void AdminCMD3(CCSPlayerController player,CCSPlayerController target, string type, int duration, string cmd)
+    public static void AdminCMD3(CCSPlayerController player,CCSPlayerController? target, string type, int duration, string cmd, ulong targetSid64 = 0)
     {
         if (!SourceBans._enabled || player == null || !player.IsValid)
             return;
 
-        var name = Instance?.Trunc(target.PlayerName,10);
+        var name = "";
+        if (SourceBans._userCache.TryGetValue(targetSid64, out var targetData))
+        {
+            name = Instance?.Trunc(targetData.PlayerName,10);
+        } else if (target != null) {
+            name = Instance?.Trunc(target.PlayerName,10);
+        }
         var builder = new HLZMenuBuilder($"{name}");
         switch (type)
         {
             case "kick":
             case "ban":
+                if (target == null) return;
                 for (int i = 1; i < 6; i++)
                 {
                     var reason = T(player,$"sz_menu.ban_reason_{i}");
@@ -1816,6 +1888,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
             break;
             case "comm":
+                if (target == null) return;
                 for (int i = 1; i < 6; i++)
                 {
                     var reason = T(player,$"sz_menu.comm_reason_{i}");
@@ -1831,7 +1904,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     var reason = T(player,$"sz_menu.unban_reason_{i}");
                     if (!string.IsNullOrEmpty(reason))
                     {
-                        builder.Add(reason, _ => AdminAction(player, cmd, null, reason, null, duration, false, target.SteamID));
+                        builder.Add(reason, _ => AdminAction(player, cmd, null, reason, null, duration, false, targetSid64));
                     }
                 }
             break;
@@ -1844,7 +1917,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void AdminConfirm(CCSPlayerController player,CCSPlayerController target, string cmd)
     {
-        if (!SourceBans._enabled || player == null || !player.IsValid)
+        if (player == null || !player.IsValid)
             return;
 
         var name = Instance?.Trunc(target.PlayerName,10);

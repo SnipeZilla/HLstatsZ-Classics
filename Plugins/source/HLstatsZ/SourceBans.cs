@@ -107,6 +107,7 @@ public class SourceBans
     public static List<MapEntry> _rtv = new();
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
     public static Dictionary<ulong, string> _userNominate = new();
+    private static readonly List<AvertissementState> _avertStates = new();
     public static string serverAddr = "";
     public static int serverID = 0;
     public static string VoteKick = "";
@@ -122,8 +123,8 @@ public class SourceBans
 
         var sb = cfg.SourceBans;
         VoteKick = sb.VoteKick ?? "private";
-        VoteMap = sb.VoteMap ?? "private";
-        Nominate = sb.Nominate;
+        VoteMap = cfg.Maps.VoteMap ?? "private";
+        Nominate = cfg.Maps.Nominate;
 
         if (string.IsNullOrWhiteSpace(sb.Database) || string.IsNullOrWhiteSpace(sb.Host) ||
             string.IsNullOrWhiteSpace(sb.User) || string.IsNullOrWhiteSpace(sb.Prefix) || !cfg.Enable_Sourcebans)
@@ -149,6 +150,60 @@ public class SourceBans
         _prefix = sb.Prefix;
         _enabled = true;
 
+    }
+
+    private class AvertissementState
+    {
+        public string Message = "";
+        public string PrintType = "";
+        public int EveryMinutes;
+        public DateTime NextTime;
+    }
+
+    public static void InitAvertissements(HLstatsZMainConfig config)
+    {
+        _avertStates.Clear();
+
+        var now = DateTime.UtcNow;
+        int index = 0;
+
+        foreach (var ads in config.Avertissements ?? Enumerable.Empty<AvertissementEntry>())
+        {
+            if (string.IsNullOrWhiteSpace(ads.Message)) continue;
+            if (ads.EveryMinutes <= 0) continue;
+
+            var offsetMinutes = index;
+
+            _avertStates.Add(new AvertissementState
+            {
+                Message      = ads.Message,
+                PrintType    = ads.PrintType,
+                EveryMinutes = ads.EveryMinutes,
+                NextTime     = now.AddMinutes(offsetMinutes)
+            });
+
+            index++;
+        }
+    }
+
+    private static void ShowAds(DateTime now)
+    {
+        if (_avertStates.Count == 0) return;
+
+        var ads = _avertStates
+            .Where(a => a.NextTime <= now)
+            .OrderBy(a => a.NextTime)
+            .FirstOrDefault();
+
+        if (ads == null)
+            return;
+
+        if (ads.PrintType == "html")
+            HLstatsZ.SendHTMLToAll(HLstatsZ.CenterColors($"{ads.Message}"));
+        else
+            HLstatsZ.SendChatToAll(HLstatsZ.Colors($"{ads.Message}"));
+
+        ads.NextTime = now.AddMinutes(ads.EveryMinutes);
     }
 
     public static async Task<bool> isAdmin(CCSPlayerController? player, bool refresh = false)
@@ -347,7 +402,7 @@ public class SourceBans
                 });
             }
 
-            // === banlog (blocked (x)) ===
+            // === Banlog (blocked (x)) ===
             if (bid > 0)
                 _ = UpdateBlocked(player,bid);
 
@@ -394,37 +449,41 @@ public class SourceBans
     {
         var results = new List<MapEntry>();
 
-        // Public maps
-        results.AddRange(config.SourceBans.MapCycle.Public.Maps.Select(m => new MapEntry
+        MapEntry ParseMap(string raw)
         {
-            DisplayName = m,
-            MapName = m
-        }));
+            const string prefix = "workshop/";
+            if (raw.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                var rest = raw.Substring(prefix.Length);
+                var parts = rest.Split('/', StringSplitOptions.RemoveEmptyEntries);
 
-        // Public WorkShop
-        results.AddRange(config.SourceBans.MapCycle.Public.WorkShop.Select(kv => new MapEntry
-        {
-            DisplayName = kv.Key,
-            MapName = kv.Key,
-            WorkshopId = kv.Value
-        }));
+                var workshopId = parts.Length > 0 ? parts[0] : "";
+                var mapName    = parts.Length > 1 ? parts[1] : workshopId;
+
+                return new MapEntry
+                {
+                    DisplayName = mapName,
+                    MapName = mapName,
+                    WorkshopId = workshopId
+                };
+            }
+            else
+            {
+                return new MapEntry
+                {
+                    DisplayName = raw,
+                    MapName = raw
+                };
+            }
+        }
+
+        // Public maps
+        results.AddRange(config.Maps.MapCycle.Public.Maps.Select(ParseMap));
 
         if (isAdmin)
         {
             // Admin maps
-            results.AddRange(config.SourceBans.MapCycle.Admin.Maps.Select(m => new MapEntry
-            {
-                DisplayName = m,
-                MapName = m
-            }));
-
-            // Admin WorkShop
-            results.AddRange(config.SourceBans.MapCycle.Admin.WorkShop.Select(kv => new MapEntry
-            {
-                DisplayName = kv.Key,
-                MapName = kv.Key,
-                WorkshopId = kv.Value
-            }));
+            results.AddRange(config.Maps.MapCycle.Admin.Maps.Select(ParseMap));
         }
 
         return results
@@ -755,11 +814,13 @@ public class SourceBans
             {
                 keysToRemove.Add(steamId);
             }
+
+            // Show Advertissement
+            ShowAds(now);
         }
 
         foreach (var key in keysToRemove)
         {
-_logger?.LogInformation($"{key}");
             _userCache.TryRemove(key, out _);
         }
     }
@@ -1147,7 +1208,7 @@ _logger?.LogInformation($"{key}");
     public static void CameraCommand(CCSPlayerController? admin, CommandInfo? command, int d = 1)
     {
         string reply = "";
-
+        int count = 0;
         // Group by IP
         var groups = _userCache
             .GroupBy(kvp => kvp.Value.Item4)
@@ -1163,7 +1224,7 @@ _logger?.LogInformation($"{key}");
             return;
         }
 
-        if ( d == 1)
+        if (d == 1)
         {
             if (admin != null)
                 reply = HLstatsZ.T(admin,"sz_console.camera") +"\n";
@@ -1183,9 +1244,9 @@ _logger?.LogInformation($"{key}");
                 return target != null && target.IsValid;
             }).ToList();
 
-            if (onlinePlayers.Count == 0) continue;
+            if (onlinePlayers.Count <= d) continue;
             reply = reply + $"  IP: {g.Key} ({onlinePlayers.Count} online players)\n";
-
+            count++;
             foreach (var (sid64, tuple) in onlinePlayers)
             {
                 var target = HLstatsZ.FindTarget(sid64);
@@ -1207,6 +1268,16 @@ _logger?.LogInformation($"{key}");
                 reply = reply+ $"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n";
             }
         }
+
+        if (count == 0 && d == 1)
+        {
+            if (admin!= null)
+                admin.PrintToConsole(HLstatsZ.T(admin,"sz_console.camera_noip"));
+            else
+                command?.ReplyToCommand(HLstatsZ.Instance!.T("sz_console.camera_noip"));
+            return;
+        }
+
         if (admin != null)
             admin.PrintToConsole(reply);
         if (command != null)
