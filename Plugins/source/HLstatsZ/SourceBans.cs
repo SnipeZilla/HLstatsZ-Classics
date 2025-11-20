@@ -300,6 +300,7 @@ public class SourceBans
 
             Server.NextFrame(() =>
             {
+                
                 if (player != null && player.IsValid && !player.IsBot)
                     Validator(player, steamId: sid64, earlyStage: true);
                 else
@@ -309,7 +310,7 @@ public class SourceBans
             // === Banlog (blocked (x)) ===
             if (bid > 0)
             {
-                _ = UpdateBlocked(player,bid);
+                _ = UpdateBlocked(sid64,bid);
                 return false;
             }
 
@@ -614,16 +615,20 @@ public class SourceBans
         }
     }
 
-    public static async Task UpdateBlocked(CCSPlayerController player, int bid = 0)
+    public static async Task UpdateBlocked(ulong sid64, int bid = 0)
     {
-        if (player == null || !player.IsValid) return;
-
-        ulong sid64 = player.SteamID;
         if (sid64 == 0) return;
 
+        string playerName = "Unknown";
+        string? ipAddr = null;
+
+        if (_userCache.TryGetValue(sid64, out var data))
+        {
+            playerName = data.PlayerName;
+            ipAddr     = data.IP;
+        }
+
         // Locals
-        string playerName = player.PlayerName;
-        string? ipAddr    = GetClientIp(player);
         string steam2_v0  = ToSteam2(sid64);
         string steam2_v1  = steam2_v0.Replace("STEAM_0:", "STEAM_1:");
         string sid64Str   = sid64.ToString();
@@ -746,7 +751,7 @@ public class SourceBans
             }
             else if (player != null && player.IsValid)
             {
-                _ = UpdateBlocked(player);
+                _ = UpdateBlocked(sid64);
                 Server.NextFrame(() => { player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED); });
                 HLstatsZ.publicChat("sz_chat.join_banned",player.PlayerName,remain);
             }
