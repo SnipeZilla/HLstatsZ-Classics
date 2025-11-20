@@ -802,12 +802,12 @@ public class SourceBans
                 }
                 if (data.ExpiryBan < now && ((data.Ban & (BanType.Ban | BanType.Banip)) != 0))
                 {
-                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "unban", null, steamId, "Expired", _logger);
+                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "unban", null, steamId, "Expired", 0, _logger);
                     SourceBans.UpdateBanUser(steamId, BanType.Ban | BanType.Banip, 0, true, 0);
                 }
                 if (data.ExpiryMute < now && ((data.Ban & BanType.Mute)!=0))
                 {
-                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "unmute", null, steamId, "Expired", _logger);
+                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "unmute", null, steamId, "Expired", 0, _logger);
                     SourceBans.UpdateBanUser(steamId, BanType.Mute, 0, true, 0);
                     if (player != null)
                     {
@@ -817,7 +817,7 @@ public class SourceBans
                 }
                 if (data.ExpiryGag < now && ((data.Ban & BanType.Gag)!=0))
                 {
-                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "ungag", null, steamId, "Expired", _logger);
+                    _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "ungag", null, steamId, "Expired", 0, _logger);
                     SourceBans.UpdateBanUser(steamId, BanType.Gag, 0, true, 0);
                     if (player != null)
                         HLstatsZ.privateChat(player,"sz_chat.ungagged");
@@ -1098,7 +1098,7 @@ public class SourceBans
             HLstatsZ.publicChat("sz_chat.vote_kick_passed",vote.Name!, vote.YES);
             _vote.Remove("kick");
             _userVote.Remove("kick");
-            _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "kick", null, vote.target.SteamID, "Vote",  _logger);
+            _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "kick", null, vote.target.SteamID, "Vote", 120, _logger);
             DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", 5.0f);
             return false; // vote is done
         }

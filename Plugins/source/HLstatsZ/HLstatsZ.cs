@@ -1930,7 +1930,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (SourceBans._userCache.TryGetValue(target.SteamID, out var targetData))
                 {
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, Aid);
-                    _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
+                    _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, 120, Instance?.Logger);
                 _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,
@@ -2025,7 +2025,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 var _expiry   = number > 0 ? number : int.MaxValue;
                 var remaining = _expiry == int.MaxValue ? T(admin,"sz_menu.permanently") : SourceBans.FormatTimeLeft(admin, TimeSpan.FromSeconds(_expiry));
 
-                _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
+                _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, _expiry, Instance?.Logger);
                 _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,
@@ -2100,7 +2100,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     "unban"       => "sz_chat.admin_unbanned",
                     _             => "SnipeZilla Error"
                 };
-                _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, targetID64, reason, Instance?.Logger);
+                _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, targetID64, reason, 0, Instance?.Logger);
                 _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,

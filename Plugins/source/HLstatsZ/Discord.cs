@@ -22,7 +22,7 @@ public static class DiscordWebhooks
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public static async Task Send(HLstatsZMainConfig cfg, string cmd, CCSPlayerController? admin, ulong steam64, string reason, ILogger? logger = null )
+    public static async Task Send(HLstatsZMainConfig cfg, string cmd, CCSPlayerController? admin, ulong steam64, string reason, int expiry = 120, ILogger? logger = null )
     {
         if (cfg is null || string.IsNullOrWhiteSpace(cfg.Discord.WebhookUrl)) return;
         if (!SourceBans._userCache.TryGetValue(steam64, out var userData)) return;
@@ -65,8 +65,9 @@ public static class DiscordWebhooks
         reason = Clean(reason);
         string serverName = ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
 
-        bool _temp = duration < int.MaxValue;
-        var durationText = !_temp ? "Permanently" : SourceBans.FormatTimeLeft(null, TimeSpan.FromSeconds(duration));
+        var time = cmd.StartsWith("un") ? duration : expiry;
+        bool _temp = time < int.MaxValue;
+        var durationText = !_temp ? "Permanently" : SourceBans.FormatTimeLeft(null, TimeSpan.FromSeconds(time));
         var color = cmd.StartsWith("un") ? HexToInt(cfg.Discord.ColorUnban) :
         (_temp ? HexToInt(cfg.Discord.ColorWithExpiration) : HexToInt(cfg.Discord.ColorPermanent));
 
