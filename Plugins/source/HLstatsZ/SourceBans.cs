@@ -101,7 +101,7 @@ public class SourceBans
                                               BanType Ban, DateTime ExpiryBan, DateTime ExpiryMute, DateTime ExpiryGag,
                                               int DurationBan, int DurationMute, int DurationGag,
                                               int CountBan, int CountMute, int CountGag, int CountSlay,
-                                              int aBan, int aMute, int aGag, bool Connected )> _userCache = new();
+                                              int aBan, int aMute, int aGag, int Bid, bool Connected )> _userCache = new();
     private static readonly Regex Ipv4WithPort = new(@"^(?<ip>\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$", RegexOptions.Compiled);
     public static Dictionary<string, (DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need)> _vote = new();
     public static List<MapEntry> _rtv = new();
@@ -250,7 +250,7 @@ public class SourceBans
                                  BanType.None, now, now, now,
                                  0, 0, 0,
                                  0, 0, 0, 0,
-                                 0, 0, 0, true);
+                                 0, 0, 0, 0, true);
             return false;
         }
 
@@ -296,7 +296,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, true);
+                                 aBan, aMute, aGag, bid, true);
 
             Server.NextFrame(() =>
             {
@@ -305,6 +305,13 @@ public class SourceBans
                 else
                     Validator(null,   steamId: sid64, earlyStage: true);
             });
+
+            // === Banlog (blocked (x)) ===
+            if (bid > 0)
+            {
+                _ = UpdateBlocked(player,bid);
+                return false;
+            }
 
             // === 2. COMMS CHECK ===
             using (var commsCmd = new MySqlCommand($@"
@@ -350,7 +357,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, true);
+                                 aBan, aMute, aGag, bid, true);
 
             if (countBan == 0 && (countMute + countGag) > 0)
             {
@@ -389,7 +396,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, true);
+                                 aBan, aMute, aGag, bid, true);
 
             if (isAdmin)
             {
@@ -401,10 +408,6 @@ public class SourceBans
                         Validator(null,   steamId: sid64, earlyStage: true);
                 });
             }
-
-            // === Banlog (blocked (x)) ===
-            if (bid > 0)
-                _ = UpdateBlocked(player,bid);
 
         } catch (Exception ex) {
             _logger?.LogError(ex, "[HLstatsZ] SourceBans checks failed for {Sid64}", sid64);
@@ -492,17 +495,17 @@ public class SourceBans
             .ToList();
     }
 
-    public static async Task<bool> WriteBan(CCSPlayerController target, int aid, string adminIp, BanType type, int durationSeconds, string reason)
+    public static async Task<bool> WriteBan(ulong sid64, string PlayerName, int aid, string adminIp, BanType type, int durationSeconds, string reason)
     {
 
-        if (!_userCache.TryGetValue(target.SteamID, out var targetData))
+        if (!_userCache.TryGetValue(sid64, out var targetData))
         {
             _logger?.LogWarning("[HLstatsZ] WriteBan: target not found in cache");
             return false;
         }
 
-        string authid   = ToSteam2(target.SteamID);
-        string name     = target.PlayerName;
+        string authid   = ToSteam2(sid64);
+        string name     = PlayerName;
         int created     = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         int ends        = durationSeconds == 0 ? created : created + durationSeconds;
         string targetIp = targetData.IP ?? "";
@@ -550,9 +553,16 @@ public class SourceBans
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "[HLstatsZ] WriteBan update failed for {Target}", target?.PlayerName);
+            _logger?.LogError(ex, "[HLstatsZ] WriteBan update failed for {Target}", PlayerName);
         }
-        if (updated) return true;
+        if (updated)
+        {
+            Server.NextFrame(() =>
+            {
+                SourceBans.UpdateBanUser(sid64, type, durationSeconds > 0 ? durationSeconds : int.MaxValue, false, aid);
+            });
+            return true;
+        }
 
         if ((type & (BanType.Ban | BanType.Banip)) != 0)
         {
@@ -590,11 +600,16 @@ public class SourceBans
         try
         {
             await cmd.ExecuteNonQueryAsync();
+            int newBid = (int)cmd.LastInsertedId;
+            Server.NextFrame(() =>
+           {
+                SourceBans.UpdateBanUser(sid64, type, durationSeconds > 0 ? durationSeconds : int.MaxValue, false, aid, null, newBid);
+           });
             return true;
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "[HLstatsZ] WriteBan exception for {Target}", target?.PlayerName);
+            _logger?.LogError(ex, "[HLstatsZ] WriteBan exception for {Target}", PlayerName);
             return false;
         }
     }
@@ -825,7 +840,7 @@ public class SourceBans
         }
     }
 
-    public static void UpdateBanUser(ulong sid64, BanType type, int Duration, bool Unban, int aid, bool? Connected = null)
+    public static void UpdateBanUser(ulong sid64, BanType type, int Duration, bool Unban, int aid, bool? Connected = null, int? Bid = null)
     {
         if (!_userCache.TryGetValue(sid64, out var userData))
             return;
@@ -847,9 +862,9 @@ public class SourceBans
         int aBan            = userData.aBan;
         int aMute           = userData.aMute;
         int aGag            = userData.aGag;
-
-        bool connected = Connected.HasValue ? Connected.Value : userData.Connected;
-        DateTime updated = connected ? now : userData.Updated;
+        int bid             = Bid.HasValue ? Bid.Value : userData.Bid;
+        bool connected      = Connected.HasValue ? Connected.Value : userData.Connected;
+        DateTime updated    = connected ? now : userData.Updated;
 
         if (!Unban)
         {
@@ -905,6 +920,7 @@ public class SourceBans
             aBan,
             aMute,
             aGag,
+            bid,
             connected
         );
     }
@@ -1165,7 +1181,6 @@ public class SourceBans
 
             if (winningChoice < 0 || winningChoice >= _rtv.Count)
             {
-                Server.PrintToChatAll("[HLstats\x07Z\x01] Invalid vote index.");
                 _vote.Remove("map");
                 _userVote.Remove("map");
                 _rtv.Clear();
@@ -1264,7 +1279,7 @@ public class SourceBans
                     Team = target.TeamNum switch {1 => "SPECTATOR", 2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
                 } else { continue; }
             
-                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
+                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
                 reply = reply+ $"    >> {Name}, '{Team}' > Steam ID → {sid64} > Admin ID → {aid} > Last Event → {seen.ToLocalTime():yyyy-MM-dd HH:mm:ss}\n";
             }
         }

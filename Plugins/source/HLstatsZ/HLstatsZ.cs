@@ -276,20 +276,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (player == null)
             Console.WriteLine(Instance!.T(key, args));
         else
-            player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args));
+            Server.NextFrame(() => {
+                player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args)); 
+            });
     }
 
     public static void publicChat(string key, params object[] args)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
-        {
-            if (player.IsValid == true && player.IsBot == false)
-            {
+        var players = GetPlayersList();
+        Server.NextFrame(() => {
+            foreach (var player in players)
                 player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args));
-
-            }
-        }
+        });
     }
 
     public static string Colors(string input)
@@ -341,33 +339,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
     }
 
-    public static void DispatchHLXEvent(string type, CCSPlayerController? player, string message)
-    {
-        if (Instance == null || player == null) return;
-
-        switch (type)
-        {
-            case "psay":
-                SendPrivateChat(player, message);
-                break;
-            case "csay":
-                Instance.BroadcastCenterMessage(message);
-                break;
-            case "msay":
-                Instance._menuManager.Open(player,message);
-                break;
-            case "say":
-                SendChatToAll(message);
-                break;
-            case "hint":
-                ShowHintMessage(player, message);
-                break;
-            default:
-                player.PrintToChat($"Unknown HLX type: {type}");
-                break;
-        }
-    }
-
     private static string NormalizeName(string name)
     {
         var normalized = name.ToLowerInvariant();
@@ -382,6 +353,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         string? token = pl as string ?? pl?.ToString();
         if (string.IsNullOrWhiteSpace(token)) return null;
+
+        // userid - hlstats
+        if (int.TryParse(token, out var uid))
+            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid);
+
+        // #userid - sb
+        if (token[0] == '#' && int.TryParse(token.AsSpan(1), out var uid2))
+            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid2);
+
+        // SteamID64
+        if (ulong.TryParse(token, out var sid64) && token.Length >= 17)
+            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.SteamID == sid64);
 
         // Name
         var name = NormalizeName(token);
@@ -403,40 +386,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (containsMatches.Count == 1) return containsMatches[0];
         if (containsMatches.Count > 1) return null;
 
-        // #userid
-        if (token[0] == '#' && int.TryParse(token.AsSpan(1), out var uid))
-            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid);
-
-        // userid
-        if (int.TryParse(token, out var uid2))
-            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.UserId == uid2);
-
-        // SteamID64
-        if (ulong.TryParse(token, out var sid64) && token.Length >= 17)
-            return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.SteamID == sid64);
-
         // Steam2
         var steam64 = SourceBans.ToSteam64(token);
         if (steam64 > 0)
             return Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && p.SteamID == steam64);
 
     return null;
-    }
-
-    public class TargetInfo
-    {
-        public ulong SteamID { get; }
-        public string PlayerName { get; }
-        public CCSPlayerController? Controller { get; }
-
-        public bool IsConnected => Controller?.IsValid == true;
-
-        public TargetInfo(ulong steamId, string playerName, CCSPlayerController? controller = null)
-        {
-            SteamID = steamId;
-            PlayerName = playerName;
-            Controller = controller;
-        }
     }
 
     public static ulong FindTargetCached(object pl)
@@ -465,7 +420,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (containsMatches.Count == 1) return containsMatches[0].SteamId;
         if (containsMatches.Count > 1) return 0;
 
-        // #userid → only works if you still want to resolve live controllers
+        // #userid
         if (token[0] == '#' && int.TryParse(token.AsSpan(1), out var uid))
         {
             var live = Utilities.GetPlayerFromUserid(uid);
@@ -576,97 +531,92 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         return false;
     }
 
+    private static IEnumerable<CCSPlayerController> GetPlayersList()
+    {
+        return Utilities.GetPlayers().Where(p => p?.IsValid == true && !p.IsBot).ToList();
+    }
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        player.PrintToChat($"{message}");
+        Server.NextFrame(() => {
+            player.PrintToChat($"{message}");
+        });
     }
 
     public static void SendChatToAll(string message)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
-        {
-            if (player?.IsValid == true && player?.IsBot == false)
-            {
+        var players = GetPlayersList();
+        Server.NextFrame(() => {
+            foreach (var player in players)
                 player.PrintToChat(message);
-            }
-        }
+        });
     }
 
-    public static void SendHTMLToAll(string message, int duration = 5)
+    public static void SendHTMLToAll(string message, float duration = 5f)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
+        var players = GetPlayersList();
+        float interval = 0.9f;
+        int repeats = (int)Math.Ceiling(duration / interval);
+        int count = 0;
+
+        Server.NextFrame(() =>
         {
-            if (player?.IsValid == true && player?.IsBot == false)
+            foreach (var player in players)
+                    player.PrintToCenterHtml(message);
+        });
+
+        new GameTimer(interval, () =>
+        {
+            if (++count > repeats)
+                return;
+
+            foreach (var player in players)
             {
-                player.PrintToCenterHtml(message, duration);
+                if (player?.IsValid == true && !player.IsBot)
+                    player.PrintToCenterHtml(message);
             }
-        }
+        }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
+
     }
 
     public static void SendChatToAdmin(string message)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
-        {
-            if (player?.IsValid != true || player.IsBot) continue;
-            if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
-            player.PrintToChat(message);
-        }
+        var players = GetPlayersList();
+        Server.NextFrame(() => {
+            foreach (var player in players)
+            {
+                if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
+                player.PrintToChat(message);
+            }
+        });
     }
 
     public static void SendChatToTeam(CsTeam team, string message)
     {
-        var players = Utilities.GetPlayers();
-        foreach (var player in players)
-        {
-            if (player?.IsValid == true && player.IsBot == false && player.Team == team)
+        var players = GetPlayersList();
+        Server.NextFrame(() => {
+            foreach (var player in players)
             {
-                player.PrintToChat(message);
-            }
-        }
-    }
-
-    public void BroadcastCenterMessage(string message, float durationInSeconds = 5.0f)
-    {
-        string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
-        string messageCHAT = message.Replace("HLstatsZ", "HLstats\x07Z\x01");
-
-        string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
-
-        var menu = new CenterHtmlMenu(htmlContent, this)
-        {
-            ExitButton = false
-        };
-
-        foreach (var p in Utilities.GetPlayers())
-        {
-            if (p?.IsValid == true && p?.IsBot == false)
-            {
-                if (!_menuManager._activeMenus.ContainsKey(p.SteamID))
+                if (player.Team == team)
                 {
-                    menu.Open(p);
-                } else {
-                    p.PrintToChat($"{messageCHAT}");
+                    player.PrintToChat(message);
                 }
             }
-        }
+        });
+    }
 
-        _ = new GameTimer(durationInSeconds, () =>
-        {
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p?.IsValid == true && p?.IsBot == false && !_menuManager._activeMenus.ContainsKey(p.SteamID))
-                    MenuManager.CloseActiveMenu(p);
-            }
-         });
+    public void BroadcastCenterMessage(string message, int duration = 5)
+    {
+        string messageHTML = message.Replace("HLstatsZ","<font color='#FFFFFF'>HLstats</font><font color='#FF2A2A'>Z</font>");
+        string htmlContent = $"<font color='#FFFFFF'>{messageHTML}</font>";
+        SendHTMLToAll(htmlContent);
     }
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-        player.PrintToCenter($"{message}");
+                Server.NextFrame(() => {
+                    player.PrintToCenter($"{message}");
+                });
     }
 
     private HookResult ComamndListenerHandler(CCSPlayerController? player, CommandInfo info)
@@ -1199,7 +1149,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (_lastPsayHash == hash) return;
 
             _lastPsayHash = hash;
-            DispatchHLXEvent("say", null, message);
+            SendChatToAll(message);
             return;
         }
 
@@ -1211,24 +1161,26 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // Broadcast to user
-        foreach (var userid in userIds)
-        {
-            var target = FindTarget(userid);
-            if (target == null || !target.IsValid) continue;
+        Server.NextFrame(() => {
+            foreach (var userid in userIds)
+            {
+                var target = FindTarget(userid);
+                if (target == null || !target.IsValid) continue;
 
-            var hash = $"{userid}:{message}";
-            if (_lastPsayHash == hash) continue;
+                var hash = $"{userid}:{message}";
+                if (_lastPsayHash == hash) continue;
+                _lastPsayHash = hash;
 
-            _lastPsayHash = hash;
-            DispatchHLXEvent("psay", target, message);
-        }
+                SendPrivateChat(target, message);
+            }
+        });
     }
 
     [ConsoleCommand("hlx_sm_csay")]
     public void OnHlxSmCsayCommand(CCSPlayerController? _, CommandInfo command)
     {
         var message = command.ArgByIndex(1);
-        DispatchHLXEvent("csay", null, message);
+        Instance?.BroadcastCenterMessage(message);
     }
 
     [ConsoleCommand("hlx_sm_hint")]
@@ -1239,7 +1191,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindTarget(userid);
         if (target == null || !target.IsValid) return;
-        DispatchHLXEvent("hint", target, message);
+        ShowHintMessage(target, message);
     }
 
     [ConsoleCommand("hlx_sm_msay")]
@@ -1250,7 +1202,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var message = command.ArgByIndex(command.ArgCount - 1);
         var target  = FindTarget(userid);
         if (target == null || !target.IsValid) return;
-        DispatchHLXEvent("msay", target, message);
+        _menuManager.Open(target,message);
     }
 
     [ConsoleCommand("kick")]
@@ -2063,23 +2015,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     target.VoiceFlags = VoiceFlags.Muted;
                 if (cmd == "silence")
                 {
-                    _ = SourceBans.WriteBan(target, Aid, Ip ?? "", BanType.Mute, number, reason);
-                    _ = SourceBans.WriteBan(target, Aid, Ip ?? "", BanType.Gag, number, reason);
+                    _ = SourceBans.WriteBan(target.SteamID, target.PlayerName, Aid, Ip ?? "", BanType.Mute, number, reason);
+                    _ = SourceBans.WriteBan(target.SteamID, target.PlayerName,  Aid, Ip ?? "", BanType.Gag, number, reason);
                 } else {
-                    _ = SourceBans.WriteBan(target, Aid, Ip ?? "", type, number, reason);
+                    _ = SourceBans.WriteBan(target.SteamID, target.PlayerName,  Aid, Ip ?? "", type, number, reason);
                 }
-                SourceBans.UpdateBanUser(target.SteamID, type, number > 0 ? number : int.MaxValue, false, Aid);
-                if (SourceBans._userCache.TryGetValue(target.SteamID, out var refreshed))
-                {
-                    targetData = refreshed;
-                }
+
                 DateTime now = DateTime.UtcNow.AddMinutes(-1);
-                var _expiry   = cmd == "ban" ? targetData.DurationBan :
-                                cmd == "banip" ? targetData.DurationBan :
-                                cmd == "mute" ? targetData.DurationMute :
-                                cmd == "gag" ? targetData.DurationGag : targetData.DurationGag;
-
-
+                var _expiry   = number > 0 ? number : int.MaxValue;
                 var remaining = _expiry == int.MaxValue ? T(admin,"sz_menu.permanently") : SourceBans.FormatTimeLeft(admin, TimeSpan.FromSeconds(_expiry));
 
                 _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, Instance?.Logger);
