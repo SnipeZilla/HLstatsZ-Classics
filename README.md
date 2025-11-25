@@ -34,7 +34,7 @@ ban
 banip
 unban
 silence
-unsilenced
+unsilence
 mute
 unmute
 gag
