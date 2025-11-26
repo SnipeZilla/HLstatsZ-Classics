@@ -109,7 +109,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.0.0";
+    public override string ModuleVersion => "2.0.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -235,8 +235,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["purple"]      = '\x0E',
         ["magenta"]     = '\x0E',
         ["grey"]        = '\x08',
-        ["gold"]        = '\x10',
         ["orange"]      = '\x10',
+        ["gold"]        = '\x10',
         ["silver"]      = '\x0A',
         ["bluegrey"]    = '\x0A',
         ["lightred"]    = '\x0F',
@@ -246,21 +246,28 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         ["default"]     = "</font>",
         ["white"]       = "<font color='#FFFFFF'>",
-        ["red"]         = "<font color='#FF0000'>",
+        ["darkred"]     = "<font color='#FF0000'>",
         ["green"]       = "<font color='#00FF00'>",
-        ["blue"]        = "<font color='#007BFF'>",
+        ["lightyellow"] = "<font color='#FFECA1'>",
         ["yellow"]      = "<font color='#FFFF00'>",
-        ["orange"]      = "<font color='#FFA500'>",
-        ["purple"]      = "<font color='#800080'>",
-        ["pink"]        = "<font color='#FF69B4'>",
-        ["grey"]        = "<font color='#CCCCCC'>",
-        ["silver"]      = "<font color='#C0C0C0'>",
-        ["gold"]        = "<font color='#FFD700'>",
+        ["blue"]        = "<font color='#007BFF'>",
+        ["lightblue"]   = "<font color='#ADD8E6'>",
+        ["darkblue"]    = "<font color='#00008B'>",
+        ["olive"]       = "<font color='#808000'>",
         ["lime"]        = "<font color='#32CD32'>",
-        ["aqua"]        = "<font color='#00FFFF'>",
+        ["red"]         = "<font color='#FF0000'>",
+        ["lightpurple"] = "<font color='#E7DDFF'>",
+        ["purple"]      = "<font color='#800080'>",
+        ["magenta"]     = "<font color='#FF00FF'>",
+        ["grey"]        = "<font color='#CCCCCC'>",
+        ["orange"]      = "<font color='#FFA500'>",
+        ["gold"]        = "<font color='#FFD700'>",
+        ["silver"]      = "<font color='#C0C0C0'>",
+        ["bluegrey"]    = "<font color='#E2EAF4'>",
+        ["lightred"]    = "<font color='#EFC3CA'>",
     };
 
-    private static readonly Regex ColorRegex = new(@"\{(\w+)\}", RegexOptions.Compiled);
+    private static readonly Regex ColorRegex = new(@"\{(\w+)\}|\[\[(\w+)\]\]", RegexOptions.Compiled);
 
     public string T(string key, params object[] args)
         => Colors(Localizer[key, args]);
@@ -294,7 +301,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         return ColorRegex.Replace(input, m =>
         {
-            var key = m.Groups[1].Value;
+            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
             return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
         });
     }
@@ -303,7 +310,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         return ColorRegex.Replace(input, m =>
         {
-            var key = m.Groups[1].Value;
+            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
             return CenterColorCodes.TryGetValue(key, out var html) ? html : m.Value;
         });
     }
@@ -558,10 +565,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
     {
-        var players = GetPlayersList();
+        var players    = GetPlayersList();
         float interval = 0.9f;
-        int repeats = (int)Math.Ceiling(duration / interval);
-        int count = 0;
+        int repeats    = (int)Math.Ceiling(duration / interval);
+        int count      = 0;
 
         new GameTimer(interval, () =>
         {
@@ -572,6 +579,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (player?.IsValid == true && !player.IsBot)
                     player.PrintToCenterHtml(message);
             }
+
+        }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
+
+    }
+
+    public static void SendPrivateHTML(CCSPlayerController player, string message, float duration = 5.0f)
+    {
+
+        float interval = 0.9f;
+        int repeats    = (int)Math.Ceiling(duration / interval);
+        int count      = 0;
+
+        new GameTimer(interval, () =>
+        {
+            if (++count > repeats) return;
+
+            if (player?.IsValid == true && !player.IsBot)
+                    player.PrintToCenterHtml(message);
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -1964,6 +1989,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     return;
                 }
                 target.CommitSuicide(false, true);
+                publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
+                message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
+                SendPrivateHTML(target, message, 4.0f);
                 if (SourceBans._userCache.TryGetValue(target.SteamID, out var targetData))
                 {
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, Aid);
@@ -1974,11 +2002,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         cmd,
                                                         $"{target.PlayerName} {reason}"
                                                     );
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",4.0f);
                 }
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T("sz_chat.admin_kicked", Name,target.PlayerName,reason));
-                publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
             break; }
             case "votekick": {
                 if (target == null || !target.IsValid) return;
@@ -2019,6 +2046,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     "gag"         => "sz_chat.admin_gagged",
                     "mute"        => "sz_chat.admin_muted",
                     "silence"     => "sz_chat.admin_silenced",
+                    _             => "SnipeZilla Error"
+                };
+                var content = cmd switch
+                {
+                    "ban"         => "sz_html.you_are_banned",
+                    "banip"       => "sz_html.you_are_banned",
+                    "gag"         => "sz_html.you_are_gagged",
+                    "mute"        => "sz_html.you_are_muted",
+                    "silence"     => "sz_html.you_are_silenced",
                     _             => "SnipeZilla Error"
                 };
                 if (!SourceBans._userCache.TryGetValue(target.SteamID, out var targetData))
@@ -2080,11 +2116,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T(message, Name,target.PlayerName, remaining, reason));
                 publicChat(message, Name,target.PlayerName,remaining,reason);
+                message = CenterColors(Instance!.Localizer.ForPlayer(target, content, reason, remaining, Instance!.Config.SourceBans.Website));
+                SendPrivateHTML(target, message, 5.0f);
+                privateChat(target,"sz_chat.sourcebans_website",Instance!.Config.SourceBans.Website);
                 if (cmd == "ban" || cmd == "banip")
                 {
-                    privateChat(target,"sz_chat.sourcebans_website",Instance!.Config.SourceBans.Website);
                     target.CommitSuicide(false, true);
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",3.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",4.0f);
                 }
             break; }
             case "ungag":
