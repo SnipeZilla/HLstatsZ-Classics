@@ -14,7 +14,7 @@ You can disable either system without affecting core functionality or admin work
 ## 🎮 Player Chat Commands
 | Command               | HLstats | MapChooser | SourceBans | Description                   |
 | ---------------------|-------- |------------|------------|--------------------------------|
-| **!menu / !hlx_menu** | ✅     | ✅        |            |Open the main menu              |
+| **!menu / !hlx_menu** | ✅     | ✅        | ✅         |Open the main menu              |
 | **!rank**            | ✅      |           |            | Show your personal rank        |
 | **!top10**           | ✅      |           |            | Show Top 10 players            |
 | **!next**            | ✅      |           |            | Show progress to next rank     |
@@ -27,10 +27,11 @@ You can disable either system without affecting core functionality or admin work
 ## 🛡️ Admin Commands Chat & Client console (SourceBans)
 | Command         | Description                        |
 | --------------- | ---------------------------------- |
-| **!@s**          | Admin → Spectators chat            |
-| **!@ct**         | Admin → Counter-Terrorists         |
-| **!@t**          | Admin → Terrorists                 |
-| **!@<username>** | Private message to specific player |
+| **@y**          | Admin message to global chat       |
+| **@s**          | Admin → Spectators chat            |
+| **@ct**         | Admin → Counter-Terrorists         |
+| **@t**          | Admin → Terrorists                 |
+| **@username**   | Private message to specific player |
 | **!say**         | Admin message to global chat       |
 | **!psay**        | Private admin message              |
 | **!hsay**        | Admin center-screen message        |
