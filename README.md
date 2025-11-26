@@ -1,5 +1,5 @@
 # HLstatsZ Classics
-A lightweight, dependency-free plugin for CS2 servers using CounterStrikeSharp.
+A lightweight, dependency-free plugin for CS2 servers using CounterStrikeSharp.<br>
 Designed for a smooth transition from SourceMod, preserving your existing HLstats and SourceBans database. Admins, bans, and stats remain intact — no migration needed.<br>
 HLstats and SourceBans integration are fully supported — but <b>not required</b>.<br>
 You can disable either system without affecting core functionality or admin workflows.
@@ -11,50 +11,65 @@ You can disable either system without affecting core functionality or admin work
 ✅ Discord webhook notification
 
 
-## Common
-```
- menu
- hlx_menu
-```
+## 🎮 Player Chat Commands
+| Command               | HLstats | MapChooser | SourceBans | Description                   |
+| ---------------------|-------- |------------|------------|--------------------------------|
+| **!menu / !hlx_menu** | ✅     | ✅        |            |Open the main menu              |
+| **!rank**            | ✅      |           |            | Show your personal rank        |
+| **!top10**           | ✅      |           |            | Show Top 10 players            |
+| **!next**            | ✅      |           |            | Show progress to next rank     |
+| **!rtv**             |         | ✅        |            | Rock-the-vote                  |
+| **!nominate**        |         | ✅        |            | Nominate a map for rtv         |
+| **!votemap**         |         | ✅        |            | Start a map vote               |
+| **!nextmap/!next**   |         | ✅        |            | Force the next nominate map    |
+| **@**                |         |           | ✅         |User → Message all admins       |
 
-## HLstats
-```
-rank
-top10
-next
-```
-## SourceBans
-```
-@ (chat to all admin), @s, @ct, @t, @<username>
-say (chat to all)
-psay (private chat)
-hsay (private hint)
-kick
-ban
-banip
-unban
-silence
-unsilence
-mute
-unmute
-gag
-ungag
-votekick
-slay
-team
-camera (duplo ip)
-players (list players)
-refresh (cache)
-```
-## MapChooser
-```
-map
-nominate
-votemap
-nominate
-next, nextmap
-rtv
-```
+## 🛡️ Admin Commands Chat & Client console (SourceBans)
+| Command         | Description                        |
+| --------------- | ---------------------------------- |
+| **!@s**          | Admin → Spectators chat            |
+| **!@ct**         | Admin → Counter-Terrorists         |
+| **!@t**          | Admin → Terrorists                 |
+| **!@<username>** | Private message to specific player |
+| **!say**         | Admin message to global chat       |
+| **!psay**        | Private admin message              |
+| **!hsay**        | Admin center-screen message        |
+| **!kick**        | Kick a player                      |
+| **!slay**        | Kill a player                      |
+| **!ban**         | Ban a player by SteamID            |
+| **!banip**       | Ban a player by IP                 |
+| **!unban**       | Remove a ban                       |
+| **!gag**         | Disable text chat                  |
+| **!mute**        | Disable voice chat                 |
+| **!silence**     | Disable both voice & text          |
+| **!ungag**       | Remove text gag                    |
+| **!unmute**      | Remove voice mute                  |
+| **!unsilence**   | Remove silence                     |
+| **!team**        | Move a player to a team            |
+| **!camera**      | Show duplicate IP                  |
+| **!players**     | Show current player list           |
+| **!map**         | Change map immediately             |
+| **!refresh**     | Refresh admin permissions cache    |
+
+## 🛡️ Console RCON Commands (SourceBans)
+| Command         | Description                        |
+| --------------- | ---------------------------------- |
+| **kick**        | Kick a player                      |
+| **slay**        | Kill a player                      |
+| **ban**         | Ban a player by SteamID            |
+| **banip**       | Ban a player by IP                 |
+| **unban**       | Remove a ban                       |
+| **gag**         | Disable text chat                  |
+| **mute**        | Disable voice chat                 |
+| **silence**     | Disable both voice & chat          |
+| **ungag**       | Remove chat gag                    |
+| **unmute**      | Remove voice mute                  |
+| **unsilence**   | Remove silence                     |
+| **team**        | Move a player to a team            |
+| **camera**      | Show duplicate IP                  |
+| **players**     | Show current player list           |
+| **refresh**     | Refresh admin permissions cache    |
+
 ## Flags
 | Flag | Description                     |
 |------|---------------------------------|
@@ -121,8 +136,8 @@ rtv
   },
 
   "Avertissements": [
-  { "Message": "Welcome To Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 2 },
-  { "Message": "Visit Snipe{red}Zilla{default}.com", "PrintType": "say", "EveryMinutes": 2 }
+  { "Message": "Welcome To Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 12 },
+  { "Message": "Visit Snipe{red}Zilla{default}.com", "PrintType": "say", "EveryMinutes": 15 }
   ],
 
   "Discord": {

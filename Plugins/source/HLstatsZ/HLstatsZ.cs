@@ -566,7 +566,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static void SendHTMLToAll(string message, float duration = 5.0f)
     {
         var players    = GetPlayersList();
-        float interval = 0.9f;
+        float interval = 0.1f;
         int repeats    = (int)Math.Ceiling(duration / interval);
         int count      = 0;
 
@@ -587,7 +587,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static void SendPrivateHTML(CCSPlayerController player, string message, float duration = 5.0f)
     {
 
-        float interval = 0.9f;
+        float interval = 0.1f;
         int repeats    = (int)Math.Ceiling(duration / interval);
         int count      = 0;
 
@@ -2002,7 +2002,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         cmd,
                                                         $"{target.PlayerName} {reason}"
                                                     );
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",4.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
                 }
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T("sz_chat.admin_kicked", Name,target.PlayerName,reason));
@@ -2117,12 +2117,12 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     command?.ReplyToCommand(Instance!.T(message, Name,target.PlayerName, remaining, reason));
                 publicChat(message, Name,target.PlayerName,remaining,reason);
                 message = CenterColors(Instance!.Localizer.ForPlayer(target, content, reason, remaining, Instance!.Config.SourceBans.Website));
-                SendPrivateHTML(target, message, 5.0f);
+                SendPrivateHTML(target, message, 4.0f);
                 privateChat(target,"sz_chat.sourcebans_website",Instance!.Config.SourceBans.Website);
                 if (cmd == "ban" || cmd == "banip")
                 {
                     target.CommitSuicide(false, true);
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",4.0f);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",3.0f);
                 }
             break; }
             case "ungag":
