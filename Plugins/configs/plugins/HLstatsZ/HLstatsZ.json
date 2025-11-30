@@ -26,7 +26,7 @@
   },
 
   "DefaultLoadout": {
-    "PrimaryWeapons":["AWP"],
+    "PrimaryWeapons":[],
     "SecondaryWeapons":[],
     "Grenades":[],
     "Armor":""
