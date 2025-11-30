@@ -17,12 +17,20 @@
     "Password": "",
     "Website": "https://bans.example.com",
     "VoteKick": "public",
+    "GiveItems": false,
     "Chat_Ban_Duration_Max": 10080,
     "Menu_Ban1_Duration": 15,
     "Menu_Ban2_Duration": 60,
     "Menu_Ban3_Duration": 1440,
     "Menu_Ban4_Duration": 10080,
     "Menu_Ban5_Duration": 0
+  },
+
+  "DefaultLoadout": {
+    "PrimaryWeapons":["AWP"],
+    "SecondaryWeapons":[],
+    "Grenades":[],
+    "Armor":""
   },
 
   "Maps": {

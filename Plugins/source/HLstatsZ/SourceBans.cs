@@ -9,6 +9,7 @@ using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Core.Translations;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using CounterStrikeSharp.API.ValveConstants.Protobuf;
+using CounterStrikeSharp.API.Modules.Entities.Constants;
 using System;
 using System.Text.RegularExpressions;
 using System.Text;
@@ -45,11 +46,12 @@ public enum AdminFlags
     Unban    = 1 << 3,  // e
     Slay     = 1 << 4,  // f
     Map      = 1 << 5,  // g
-    Configs  = 1 << 6,  // i
-    BanIp    = 1 << 7,  // o
-    BanPerm  = 1 << 8,  // p
-    UnbanAny = 1 << 9,  // q
-    Root     = 1 << 10, // z
+    Config   = 1 << 6,  // i
+    Cheats   = 1 << 7,  // n
+    BanIp    = 1 << 8,  // o
+    BanPerm  = 1 << 9,  // p
+    UnbanAny = 1 << 10,  // q
+    Root     = 1 << 11, // z
 }
 
 public static class AdminFlagExtensions
@@ -62,7 +64,8 @@ public static class AdminFlagExtensions
         ['e'] = AdminFlags.Unban,
         ['f'] = AdminFlags.Slay,
         ['g'] = AdminFlags.Map,
-        ['i'] = AdminFlags.Configs, // !refresh
+        ['i'] = AdminFlags.Config, // !refresh
+        ['n'] = AdminFlags.Cheats, // !give
         ['o'] = AdminFlags.BanIp,
         ['p'] = AdminFlags.BanPerm,
         ['q'] = AdminFlags.UnbanAny,
@@ -205,6 +208,16 @@ public class SourceBans
             HLstatsZ.SendChatToAll(HLstatsZ.Colors($"{ads.Message}"));
 
         ads.NextTime = now.AddMinutes(ads.EveryMinutes);
+    }
+
+    public static void Rename(CCSPlayerController player, string newName)
+    {
+        if (player == null || !player.IsValid || string.IsNullOrEmpty(newName))
+            return;
+
+        player.PlayerName = newName;
+        Utilities.SetStateChanged(player, "CBasePlayerController", "m_iszPlayerName");
+       UpdateBanUser(player.SteamID, BanType.None, 0, false, 0, true, null, newName);
     }
 
     public static async Task<bool> isAdmin(CCSPlayerController? player, bool refresh = false)
@@ -843,7 +856,7 @@ public class SourceBans
         }
     }
 
-    public static void UpdateBanUser(ulong sid64, BanType type, int Duration, bool Unban, int aid, bool? Connected = null, int? Bid = null)
+    public static void UpdateBanUser(ulong sid64, BanType type, int Duration, bool Unban, int aid, bool? Connected = null, int? Bid = null, string? PlayerName = null)
     {
         if (!_userCache.TryGetValue(sid64, out var userData))
             return;
@@ -851,6 +864,7 @@ public class SourceBans
 
         var newBan = Unban ? userData.Ban & ~type : userData.Ban | type;
 
+        string playerName   = string.IsNullOrEmpty(PlayerName) ? userData.PlayerName : PlayerName;
         DateTime now        = DateTime.UtcNow;
         DateTime expiryBan  = userData.ExpiryBan;
         DateTime expiryMute = userData.ExpiryMute;
@@ -903,7 +917,7 @@ public class SourceBans
         }
 
         _userCache[sid64] = (
-            userData.PlayerName,
+            playerName,
             userData.IsAdmin,
             userData.Aid,
             userData.IP,
@@ -1319,5 +1333,132 @@ public class SourceBans
         }
 
     }
+
+    public static bool TryParseWeapon(string value, out CsItem item)
+    {
+        item = CsItem.Decoy;
+
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        value = value.Trim();
+
+        if (value.StartsWith("weapon_", StringComparison.OrdinalIgnoreCase))
+            value = value.Substring(7);
+
+        return Enum.TryParse(value, ignoreCase: true, out item);
+    }
+
+    private static readonly Random _rng = new();
+
+    public static bool TryPickRandomWeapon(List<string> candidates, out CsItem item)
+    {
+        item = CsItem.Decoy;
+
+        if (candidates == null || candidates.Count == 0)
+            return false;
+
+        foreach (var name in candidates.OrderBy(_ => _rng.Next()))
+        {
+            if (TryParseWeapon(name, out item))
+                return true;
+        }
+
+        return false;
+    }
+
+    public static void GiveItems(CCSPlayerController player, HLstatsZMainConfig config, string? Item = null)
+    {
+        if (player == null || !player.IsValid || player.PlayerPawn == null || !player.PlayerPawn.IsValid)
+            return;
+
+        var pawn = player.PlayerPawn.Value;
+        if (pawn == null || !pawn.IsValid)
+            return;
+
+        var itemServices   = pawn.ItemServices;
+        var weaponServices = pawn.WeaponServices;
+
+        if (itemServices == null || weaponServices == null)
+            return;
+
+        if (!string.IsNullOrEmpty(Item))
+        {
+            if (TryParseWeapon(Item, out var item))
+            {
+                player.GiveNamedItem(item);
+                return;
+           }
+        }
+
+        var cfg = config.DefaultLoadout;
+
+        // Primary
+        if (TryPickRandomWeapon(cfg.PrimaryWeapons, out var primaryItem))
+            player.GiveNamedItem(primaryItem);
+
+        // Secondary
+        if (TryPickRandomWeapon(cfg.SecondaryWeapons, out var secondaryItem))
+            player.GiveNamedItem(secondaryItem);
+
+        // Grenades
+        foreach (var g in cfg.Grenades)
+        {
+            if (TryParseWeapon(g, out var grenadeItem))
+                player.GiveNamedItem(grenadeItem);
+        }
+
+        // Armor
+        if (cfg.Armor.Contains("Kevlar") && TryParseWeapon(cfg.Armor, out var Armor))
+            player.GiveNamedItem(Armor);
+    }
+
+     private static void StripWeapons(CCSPlayerController player)
+    {
+        if (player == null || !player.IsValid || player.PlayerPawn == null || !player.PlayerPawn.IsValid)
+            return;
+
+        var pawn = player.PlayerPawn.Value;
+        if (pawn == null || !pawn.IsValid)
+            return;
+
+        var weaponServices = pawn.WeaponServices;
+        if (weaponServices == null)
+            return;
+
+        var weapons = weaponServices.MyWeapons;
+        if (weapons == null)
+            return;
+
+        var toRemove = new List<CBasePlayerWeapon>();
+
+        foreach (var handle in weapons)
+        {
+            var w = handle.Value;
+            if (w == null || !w.IsValid)
+                continue;
+
+            if (w.DesignerName?.Contains("knife", StringComparison.OrdinalIgnoreCase) == true)
+                continue;
+
+            var vdata = w.VData;
+            if (vdata == null)
+                continue;
+
+            int slot = vdata.Slot;
+            if (slot == 0 || slot == 1 || slot == 3)
+                toRemove.Add(w);
+        }
+
+        Server.NextFrame(() =>
+        {
+            foreach (var w in toRemove)
+            {
+                if (w != null && w.IsValid)
+                    w.Remove();
+            }
+        });
+    }
+
 
 }

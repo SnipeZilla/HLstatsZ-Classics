@@ -14,6 +14,7 @@ using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
+using CounterStrikeSharp.API.Modules.Entities.Constants;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Net;
@@ -31,6 +32,8 @@ public class HLstatsZMainConfig : IBasePluginConfig
     [JsonPropertyName("ServerAddr")] public string ServerAddr { get; set; } = "";
     public int Version { get; set; } = 2;
 
+    [JsonPropertyName("DefaultLoadout")] public DefaultLoadoutConfig DefaultLoadout { get; set; } = new();
+
     [JsonPropertyName("SourceBans")] public SourceBansConfig SourceBans { get; set; } = new();
 
     [JsonPropertyName("Maps")] public MapsConfig Maps { get; set; } = new();
@@ -38,6 +41,14 @@ public class HLstatsZMainConfig : IBasePluginConfig
     [JsonPropertyName("Avertissements")] public List<AvertissementEntry> Avertissements { get; set; } = new();
 
     [JsonPropertyName("Discord")] public DiscordConfig Discord { get; set; } = new();
+}
+
+public class DefaultLoadoutConfig
+{
+    [JsonPropertyName("PrimaryWeapons")] public List<string> PrimaryWeapons { get; set; } = new();
+    [JsonPropertyName("SecondaryWeapons")] public List<string> SecondaryWeapons { get; set; } = new();
+    [JsonPropertyName("Grenades")] public List<string> Grenades { get; set; } = new();
+    [JsonPropertyName("Armor")] public string Armor { get; set; } = "";
 }
 
 public class SourceBansConfig
@@ -51,6 +62,7 @@ public class SourceBansConfig
     [JsonPropertyName("Password")] public string Password { get; set; } = "";
     [JsonPropertyName("Website")] public string Website { get; set; } = "";
     [JsonPropertyName("VoteKick")] public string VoteKick { get; set; } = "public";
+    [JsonPropertyName("GiveItems")] public bool GiveItems { get; set; } = false;
     [JsonPropertyName("Chat_Ban_Duration_Max")] public int Chat_Ban_Duration_Max { get; set; } = 10080;
     [JsonPropertyName("Menu_Ban1_Duration")] public int Menu_Ban1_Duration { get; set; } = 15;
     [JsonPropertyName("Menu_Ban2_Duration")] public int Menu_Ban2_Duration { get; set; } = 60;
@@ -109,7 +121,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.0.1";
+    public override string ModuleVersion => "2.1.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -141,6 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         RegisterListener<Listeners.OnMapStart>(OnMapStart);
         RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
+        RegisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);
         RegisterEventHandler<EventRoundStart>(OnRoundStart);
         RegisterEventHandler<EventRoundEnd>(OnRoundEnd);
         RegisterEventHandler<EventRoundMvp>(OnRoundMvp);
@@ -188,6 +201,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         RemoveListener<Listeners.OnMapStart>(OnMapStart);
         RemoveListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
+        DeregisterEventHandler<EventPlayerSpawn>(OnPlayerSpawn);
         DeregisterEventHandler<EventRoundStart>(OnRoundStart);
         DeregisterEventHandler<EventRoundEnd>(OnRoundEnd);
         DeregisterEventHandler<EventRoundMvp>(OnRoundMvp);
@@ -1046,17 +1060,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             case "ungag":
             case "unmute":
             case "unsilence":
-                if (!userData.IsAdmin)
+                if (!userData.IsAdmin || !adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
                 {
                     privateChat(player, "sz_chat.permission");
                     return HookResult.Handled;
                 }
-                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.Unban))
-                {
-                    privateChat(player, "sz_chat.permission");
-                    return HookResult.Handled;
-                }
-                //length = parts.Length > 1 ? parts[1] : "1";
                 reason  = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
                 if (parts.Length < 3) 
                 {
@@ -1084,7 +1092,46 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 AdminAction(player, cmd, target, reason, null);
             return HookResult.Handled;
-
+            case "give":
+                if (!userData.IsAdmin || !adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if (parts.Length == 1)
+                {
+                    privateChat(player, "sz_chat.generic_usage", cmd);
+                    return HookResult.Handled;
+                }
+                who    = parts.Length > 1 ? parts[1].Trim() : "";
+                target = FindTarget(who);
+                if (target == null)
+                {
+                    privateChat(player, "sz_chat.target_notfound", who);
+                    return HookResult.Handled;
+                }
+                AdminAction(player, cmd, target, parts[2].Trim(), null);
+            return HookResult.Handled;
+            case "rename":
+                if (!userData.IsAdmin)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if (parts.Length == 1)
+                {
+                    privateChat(player, "sz_chat.generic_usage", cmd);
+                    return HookResult.Handled;
+                }
+                who    = parts.Length > 1 ? parts[1].Trim() : "";
+                target = FindTarget(who);
+                if (target == null)
+                {
+                    privateChat(player, "sz_chat.target_notfound", who);
+                    return HookResult.Handled;
+                }
+                AdminAction(player, cmd, target, parts[2].Trim(), null);
+            return HookResult.Handled;
             case "team":
                 if (!userData.IsAdmin)
                 {
@@ -1151,7 +1198,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     privateChat(player, "sz_chat.permission");
                     return HookResult.Handled;
                 }
-                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Configs))
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Config))
                 {
                     privateChat(player, "sz_chat.permission");
                     return HookResult.Handled;
@@ -1257,6 +1304,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     [ConsoleCommand("unmute")]
     [ConsoleCommand("unsilence")]
     [ConsoleCommand("unban")]
+    [ConsoleCommand("rename")]
     public void OnCssCommand(CCSPlayerController? player, CommandInfo command)
     {
         if (player != null) return;
@@ -1630,10 +1678,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     if ((userData.Ban & (BanType.Kick | BanType.Ban | BanType.Banip))>0 && userData.ExpiryBan > DateTime.UtcNow) continue;
                     name = Instance?.Trunc(target.PlayerName, 20);
                     label = $"#{target.Slot} - {name}";
-                    if (admin != target)
-                        builder.Add(label, _ => AdminCMD(admin, target));
-                    else
-                       builder.AddNoOp(label);
+                    //if (admin != target)
+                    builder.Add(label, _ => AdminCMD(admin, target));
+                    //else
+                      // builder.AddNoOp(label);
                 }
             break;
             case 1:
@@ -1679,6 +1727,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 builder.Add(T(player,"sz_menu.slay"), _ => AdminConfirm(player,target,"Slay"));
             if (target.TeamNum > 0)
                 builder.Add(T(player,"sz_menu.team"), _ => AdminCMD1(player,target,"team"));
+            if (Instance!.Config.SourceBans.GiveItems && adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
+                builder.Add(T(player,"sz_menu.give_items"), _ => AdminCMDitem(player,target));
         } else {
             if (adminFlags.Has(AdminFlags.Root | AdminFlags.Kick | AdminFlags.Ban))
                 builder.Add(T(player,"sz_menu.kick"), _ => AdminConfirm(player,target,"kick"));
@@ -1730,8 +1780,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                    flags.Add("Slay");
                 if (adminFlags.Has(AdminFlags.Map))
                    flags.Add("Map");
-                if (adminFlags.Has(AdminFlags.Configs))
-                   flags.Add("Configs");
+                if (adminFlags.Has(AdminFlags.Config))
+                   flags.Add("Config");
                 if (adminFlags.Has(AdminFlags.BanIp))
                    flags.Add("BanIp");
                 if (adminFlags.Has(AdminFlags.BanPerm))
@@ -1765,6 +1815,56 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
         builder.Open(player, Instance!._menuManager);
     }
+
+    public static void AdminCMDitem(CCSPlayerController player,CCSPlayerController? target)
+    {
+        if (!SourceBans._enabled || player == null || !player.IsValid || target == null)
+            return;
+        var builder = new HLZMenuBuilder("Give Items").NoNumber();
+        builder.Add("[Pistol] CZ75-Auto", _ => AdminConfirm(player,target,"give 1 CZ"));
+        builder.Add("[Pistol] Desert Eagle", _ => AdminConfirm(player,target,"give 1 Deagle"));
+        builder.Add("[Pistol] Dual Berettas", _ => AdminConfirm(player,target,"give 1 Elite"));
+        builder.Add("[Pistol] Five-SeveN", _ => AdminConfirm(player,target,"give 1 FiveSeven"));
+        builder.Add("[Pistol] Glock-18", _ => AdminConfirm(player,target,"give 1 Glock"));
+        builder.Add("[Pistol] P2000", _ => AdminConfirm(player,target,"give 1 HKP2000"));
+        builder.Add("[Pistol] P250", _ => AdminConfirm(player,target,"give 1 P250"));
+        builder.Add("[Pistol] R8 Revolver", _ => AdminConfirm(player,target,"give 1 Revolver"));
+        builder.Add("[Pistol] Tec-9", _ => AdminConfirm(player,target,"give 1 Tec9"));
+        builder.Add("[Pistol] USP-S", _ => AdminConfirm(player,target,"give 1 USPS"));
+        builder.Add("[Rifle] AK47", _ => AdminConfirm(player,target,"give 1 AK47"));
+        builder.Add("[Rifle] AUG", _ => AdminConfirm(player,target,"give 1 AUG"));
+        builder.Add("[Rifle] AWP", _ => AdminConfirm(player,target,"give 1 AWP"));
+        builder.Add("[Rifle] FAMAS", _ => AdminConfirm(player,target,"give 1 Famas"));
+        builder.Add("[Rifle] G3SG1", _ => AdminConfirm(player,target,"give 1 G3SG1"));
+        builder.Add("[Rifle] Galil AR", _ => AdminConfirm(player,target,"give 1 GalilAR"));
+        builder.Add("[Rifle] M4A1-S", _ => AdminConfirm(player,target,"give 1 M4A1S"));
+        builder.Add("[Rifle] SCAR-20", _ => AdminConfirm(player,target,"give 1 SCAR20"));
+        builder.Add("[Rifle] SG 553", _ => AdminConfirm(player,target,"give 1 SG553"));
+        builder.Add("[Rifle] SSG 08", _ => AdminConfirm(player,target,"give 1 SSG08"));
+        builder.Add("[SMG] MAC-10", _ => AdminConfirm(player,target,"give 1 Mac10"));
+        builder.Add("[SMG] MP5-SD", _ => AdminConfirm(player,target,"give 1 MP5SD"));
+        builder.Add("[SMG] MP7", _ => AdminConfirm(player,target,"give 1 MP7"));
+        builder.Add("[SMG] MP9", _ => AdminConfirm(player,target,"give 1 MP9"));
+        builder.Add("[SMG] PP-Bizon", _ => AdminConfirm(player,target,"give 1 Bizon"));
+        builder.Add("[SMG] P90", _ => AdminConfirm(player,target,"give 1 P90"));
+        builder.Add("[SMG] UMP-45", _ => AdminConfirm(player,target,"give 1 UMP45"));
+        builder.Add("[Heavy] MAG-7", _ => AdminConfirm(player,target,"give 1 MAG7"));
+        builder.Add("[Heavy] Nova", _ => AdminConfirm(player,target,"give 1 Nova"));
+        builder.Add("[Heavy] Sawed-Off", _ => AdminConfirm(player,target,"give 1 SawedOff"));
+        builder.Add("[Heavy] XM1014", _ => AdminConfirm(player,target,"give 1 XM1014"));
+        builder.Add("[Heavy] M249", _ => AdminConfirm(player,target,"give 1 M249"));
+        builder.Add("[Heavy] Negev", _ => AdminConfirm(player,target,"give 1 Negev"));
+        builder.Add("[Taser] Zeus x27", _ => AdminConfirm(player,target,"give 1 Taser"));
+        builder.Add("[Grenade] Smoke", _ => AdminConfirm(player,target,"give 1 Smoke"));
+        builder.Add("[Grenade] Molotov", _ => AdminConfirm(player,target,"give 1 Molotov"));
+        builder.Add("[Grenade] Flashbang", _ => AdminConfirm(player,target,"give 1 Flashbang"));
+        builder.Add("[Grenade] HE", _ => AdminConfirm(player,target,"give 1 HighExplosive"));
+        builder.Add("[Grenade] Decoy", _ => AdminConfirm(player,target,"give 1 Decoy"));
+        builder.Add("[Armor] Kevlar", _ => AdminConfirm(player,target,"give 1 Kevlar"));
+        builder.Add("[Armor] KevlarHelmet", _ => AdminConfirm(player,target,"give 1 KevlarHelmet"));
+        builder.Add("[Health] HealthShot", _ => AdminConfirm(player,target,"give 1 Healthshot"));
+        builder.Open(player, Instance!._menuManager);
+   }
 
     public static void AdminCMD1(CCSPlayerController player,CCSPlayerController? target, string cmd)
     {
@@ -2241,6 +2341,52 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 var change = match.IsSteamWorkshop ? $"host_workshop_map {match.WorkshopId}" : $"changelevel {match.MapName}";
                 SourceBans.DelayedCommand(change,5.0f);
             break; }
+            case "give":
+                if (target == null || !target.IsValid) return;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats) || !Instance!.Config.SourceBans.GiveItems)
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
+                if (!SourceBans.TryParseWeapon(reason, out var item))
+                {
+                    if (admin == null)
+                        command?.ReplyToCommand(Instance!.T("sz_chat.no_items"));
+                    else
+                        privateChat(admin, "sz_chat.no_items");
+                    return;
+                }
+
+
+                if (admin == null)
+                    command?.ReplyToCommand(Instance!.T("sz_chat.admin_renamed", Name,target.PlayerName, reason));
+                _ = DiscordWebhooks.LogAdminCommand(
+                                                        Instance!.Config,
+                                                        admin,
+                                                        cmd,
+                                                        $"{reason} → {target.PlayerName}"
+                                                    );
+                publicChat("sz_chat.give_items", Name,reason,target.PlayerName);
+                SourceBans.GiveItems(target, HLstatsZ.Instance!.Config, reason);
+            break;
+            case "rename":
+                if (target == null || !target.IsValid) return;
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Generic))
+                {
+                    privateChat(admin, "sz_chat.permission");
+                    return;
+                }
+                if (admin == null)
+                    command?.ReplyToCommand(Instance!.T("sz_chat.admin_renamed", Name,target.PlayerName, reason));
+                _ = DiscordWebhooks.LogAdminCommand(
+                                                        Instance!.Config,
+                                                        admin,
+                                                        cmd,
+                                                        $"{target.PlayerName} → {reason}"
+                                                    );
+                publicChat("sz_chat.admin_renamed", Name,target.PlayerName,reason);
+                SourceBans.Rename(target,reason);
+            break;
             case "slay":
                 if (target == null || !target.IsValid) return;
                 if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Slay))
@@ -2462,8 +2608,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         bool isValid = false;
 
-        if (SourceBans._userCache.TryGetValue(player.SteamID, out var cached))
+        if (SourceBans._userCache.TryGetValue(player.SteamID, out var userCached))
+        {
             isValid = SourceBans.Validator(player);
+            if ( !string.Equals(userCached.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase) )
+                SourceBans.Rename(player, userCached.PlayerName);
+
+        }
 
         if (!isValid)
         {
@@ -2532,6 +2683,24 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         return HookResult.Continue;
     }
+
+   public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
+   {
+        var player = @event.Userid;
+        if (player == null || !player.IsValid)
+           return HookResult.Continue;
+
+        Server.NextFrame(() => {
+            SourceBans.GiveItems(player, HLstatsZ.Instance!.Config);
+            if (SourceBans._userCache.TryGetValue(player.SteamID, out var userCached))
+            {
+                if ( !string.Equals(userCached.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase) )
+                    SourceBans.Rename(player, userCached.PlayerName);
+            }
+        });
+
+       return HookResult.Continue;
+   }
 
     private void OnMapStart(string name)
     {
