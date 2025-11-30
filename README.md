@@ -2,13 +2,15 @@
 A lightweight, dependency-free plugin for CS2 servers using CounterStrikeSharp.<br>
 Designed for a smooth transition from SourceMod, preserving your existing HLstats and SourceBans database. Admins, bans, and stats remain intact — no migration needed.<br>
 HLstats and SourceBans integration are fully supported — but <b>not required</b>.<br>
-You can disable either system without affecting core functionality or admin workflows.
+You can disable either system without affecting core functionality or admin workflows.<br>
+No extra plugins required: Works seamlessly with the standard CS2 deathmatch mode. No need to install or maintain a separate “deathmatch” plugin just to enforce loadouts (e.g. AWP).
 
 ✅ No external dependencies<br>
 ✅ Compatible with existing MySQL schema<br>
 ✅ Reload-safe and performance-optimized<br>
 ✅ Native command support with privilege flags<br>
-✅ Discord webhook notification
+✅ Discord webhook notification<br>
+✅ Deathmatch AWP only compatible
 
 
 ## 🎮 Player Chat Commands
@@ -47,7 +49,7 @@ You can disable either system without affecting core functionality or admin work
 | **!unmute**      | Remove voice mute                  |
 | **!unsilence**   | Remove silence                     |
 | **!team**        | Move a player to a team            |
-| **!give**        | Give item/weapons                  |
+| **!give**        | Give item/weapon                   |
 | **!camera**      | Show duplicate IP                  |
 | **!players**     | Show current player list           |
 | **!map**         | Change map immediately             |
@@ -120,6 +122,13 @@ You can disable either system without affecting core functionality or admin work
     "Menu_Ban3_Duration": 1440,
     "Menu_Ban4_Duration": 10080,
     "Menu_Ban5_Duration": 0,
+  },
+
+  "DefaultLoadout": {
+    "PrimaryWeapons":["AWP"],
+    "SecondaryWeapons":[],
+    "Grenades":[],
+    "Armor":""
   },
 
   "Maps": {
