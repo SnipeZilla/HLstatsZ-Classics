@@ -47,9 +47,11 @@ You can disable either system without affecting core functionality or admin work
 | **!unmute**      | Remove voice mute                  |
 | **!unsilence**   | Remove silence                     |
 | **!team**        | Move a player to a team            |
+| **!give**        | Give item/weapons                  |
 | **!camera**      | Show duplicate IP                  |
 | **!players**     | Show current player list           |
 | **!map**         | Change map immediately             |
+| **!rename**      | Rename session player name         |
 | **!refresh**     | Refresh admin permissions cache    |
 
 ## 🛡️ Console RCON Commands (SourceBans)
@@ -69,6 +71,7 @@ You can disable either system without affecting core functionality or admin work
 | **team**        | Move a player to a team            |
 | **camera**      | Show duplicate IP                  |
 | **players**     | Show current player list           |
+| **rename**      | Rename session player name         |
 | **refresh**     | Refresh admin permissions cache    |
 
 ## Flags
@@ -82,6 +85,7 @@ You can disable either system without affecting core functionality or admin work
 | g    | Change map                      |
 | i    | Configs (!refresh)              |
 | o    | Banip                           |
+| n    | Cheats (!give)                  |
 | p    | Ban permanently                 |
 | q    | Unban anyone                    |
 | z    | Root admin (full access)        |
