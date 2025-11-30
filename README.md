@@ -47,7 +47,7 @@ You can disable either system without affecting core functionality or admin work
 | **!unmute**      | Remove voice mute                  |
 | **!unsilence**   | Remove silence                     |
 | **!team**        | Move a player to a team            |
-| **!give**        | Give item/weapons                  |
+| **!give**        | Give item/weapon                   |
 | **!camera**      | Show duplicate IP                  |
 | **!players**     | Show current player list           |
 | **!map**         | Change map immediately             |
