@@ -17,7 +17,6 @@
     "Password": "",
     "Website": "https://bans.example.com",
     "VoteKick": "public",
-    "GiveItems": false,
     "Chat_Ban_Duration_Max": 10080,
     "Menu_Ban1_Duration": 15,
     "Menu_Ban2_Duration": 60,

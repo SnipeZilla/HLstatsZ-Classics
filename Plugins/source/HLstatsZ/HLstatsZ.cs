@@ -62,7 +62,6 @@ public class SourceBansConfig
     [JsonPropertyName("Password")] public string Password { get; set; } = "";
     [JsonPropertyName("Website")] public string Website { get; set; } = "";
     [JsonPropertyName("VoteKick")] public string VoteKick { get; set; } = "public";
-    [JsonPropertyName("GiveItems")] public bool GiveItems { get; set; } = false;
     [JsonPropertyName("Chat_Ban_Duration_Max")] public int Chat_Ban_Duration_Max { get; set; } = 10080;
     [JsonPropertyName("Menu_Ban1_Duration")] public int Menu_Ban1_Duration { get; set; } = 15;
     [JsonPropertyName("Menu_Ban2_Duration")] public int Menu_Ban2_Duration { get; set; } = 60;
@@ -1727,7 +1726,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 builder.Add(T(player,"sz_menu.slay"), _ => AdminConfirm(player,target,"Slay"));
             if (target.TeamNum > 0)
                 builder.Add(T(player,"sz_menu.team"), _ => AdminCMD1(player,target,"team"));
-            if (Instance!.Config.SourceBans.GiveItems && adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
+            if (adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
                 builder.Add(T(player,"sz_menu.give_items"), _ => AdminCMDitem(player,target));
         } else {
             if (adminFlags.Has(AdminFlags.Root | AdminFlags.Kick | AdminFlags.Ban))
@@ -2343,7 +2342,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             break; }
             case "give":
                 if (target == null || !target.IsValid) return;
-                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats) || !Instance!.Config.SourceBans.GiveItems)
+                if(!adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
                 {
                     privateChat(admin, "sz_chat.permission");
                     return;
