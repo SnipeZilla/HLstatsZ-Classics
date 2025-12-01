@@ -32,8 +32,6 @@ public class HLstatsZMainConfig : IBasePluginConfig
     [JsonPropertyName("ServerAddr")] public string ServerAddr { get; set; } = "";
     public int Version { get; set; } = 2;
 
-    [JsonPropertyName("DefaultLoadout")] public DefaultLoadoutConfig DefaultLoadout { get; set; } = new();
-
     [JsonPropertyName("SourceBans")] public SourceBansConfig SourceBans { get; set; } = new();
 
     [JsonPropertyName("Maps")] public MapsConfig Maps { get; set; } = new();
@@ -41,14 +39,6 @@ public class HLstatsZMainConfig : IBasePluginConfig
     [JsonPropertyName("Avertissements")] public List<AvertissementEntry> Avertissements { get; set; } = new();
 
     [JsonPropertyName("Discord")] public DiscordConfig Discord { get; set; } = new();
-}
-
-public class DefaultLoadoutConfig
-{
-    [JsonPropertyName("PrimaryWeapons")] public List<string> PrimaryWeapons { get; set; } = new();
-    [JsonPropertyName("SecondaryWeapons")] public List<string> SecondaryWeapons { get; set; } = new();
-    [JsonPropertyName("Grenades")] public List<string> Grenades { get; set; } = new();
-    [JsonPropertyName("Armor")] public string Armor { get; set; } = "";
 }
 
 public class SourceBansConfig

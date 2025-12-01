@@ -1349,24 +1349,6 @@ public class SourceBans
         return Enum.TryParse(value, ignoreCase: true, out item);
     }
 
-    private static readonly Random _rng = new();
-
-    public static bool TryPickRandomWeapon(List<string> candidates, out CsItem item)
-    {
-        item = CsItem.Decoy;
-
-        if (candidates == null || candidates.Count == 0)
-            return false;
-
-        foreach (var name in candidates.OrderBy(_ => _rng.Next()))
-        {
-            if (TryParseWeapon(name, out item))
-                return true;
-        }
-
-        return false;
-    }
-
     public static void GiveItems(CCSPlayerController player, HLstatsZMainConfig config, string? Item = null)
     {
         if (player == null || !player.IsValid || player.PlayerPawn == null || !player.PlayerPawn.IsValid)
@@ -1390,27 +1372,6 @@ public class SourceBans
                 return;
            }
         }
-
-        var cfg = config.DefaultLoadout;
-
-        // Primary
-        if (TryPickRandomWeapon(cfg.PrimaryWeapons, out var primaryItem))
-            player.GiveNamedItem(primaryItem);
-
-        // Secondary
-        if (TryPickRandomWeapon(cfg.SecondaryWeapons, out var secondaryItem))
-            player.GiveNamedItem(secondaryItem);
-
-        // Grenades
-        foreach (var g in cfg.Grenades)
-        {
-            if (TryParseWeapon(g, out var grenadeItem))
-                player.GiveNamedItem(grenadeItem);
-        }
-
-        // Armor
-        if (cfg.Armor.Contains("Kevlar") && TryParseWeapon(cfg.Armor, out var Armor))
-            player.GiveNamedItem(Armor);
     }
 
 }
