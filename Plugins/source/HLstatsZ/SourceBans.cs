@@ -1349,7 +1349,7 @@ public class SourceBans
         return Enum.TryParse(value, ignoreCase: true, out item);
     }
 
-    public static void GiveItems(CCSPlayerController player, HLstatsZMainConfig config, string? Item = null)
+    public static void GiveItems(CCSPlayerController player, string? Item = null)
     {
         if (player == null || !player.IsValid || player.PlayerPawn == null || !player.PlayerPawn.IsValid)
             return;

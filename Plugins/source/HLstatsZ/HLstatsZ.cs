@@ -2356,7 +2356,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         $"{reason} → {target.PlayerName}"
                                                     );
                 publicChat("sz_chat.give_items", Name,reason,target.PlayerName);
-                SourceBans.GiveItems(target, HLstatsZ.Instance!.Config, reason);
+                SourceBans.GiveItems(target, reason);
             break;
             case "rename":
                 if (target == null || !target.IsValid) return;
@@ -2680,7 +2680,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
            return HookResult.Continue;
 
         Server.NextFrame(() => {
-            SourceBans.GiveItems(player, HLstatsZ.Instance!.Config);
             if (SourceBans._userCache.TryGetValue(player.SteamID, out var userCached))
             {
                 if ( !string.Equals(userCached.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase) )

@@ -25,13 +25,6 @@
     "Menu_Ban5_Duration": 0
   },
 
-  "DefaultLoadout": {
-    "PrimaryWeapons":[],
-    "SecondaryWeapons":[],
-    "Grenades":[],
-    "Armor":""
-  },
-
   "Maps": {
     "VoteMap": "public",
     "Nominate": true,
