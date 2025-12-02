@@ -1852,6 +1852,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         builder.Add("[Armor] Kevlar", _ => AdminConfirm(player,target,"give 1 Kevlar"));
         builder.Add("[Armor] KevlarHelmet", _ => AdminConfirm(player,target,"give 1 KevlarHelmet"));
         builder.Add("[Health] HealthShot", _ => AdminConfirm(player,target,"give 1 Healthshot"));
+        builder.Add("[Bomb] C4", _ => AdminConfirm(player,target,"give 1 C4"));
         builder.Open(player, Instance!._menuManager);
    }
 

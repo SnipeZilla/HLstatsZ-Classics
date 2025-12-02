@@ -1235,7 +1235,7 @@ public class SourceBans
             if (player?.IsValid == true && player?.IsBot == false)
             {
                 bool _ = await isAdmin(player, true);
-    
+
                 if (player.IsValid && !player.IsBot)
                 {
                     SourceBans.Validator(player);
@@ -1367,10 +1367,7 @@ public class SourceBans
         if (!string.IsNullOrEmpty(Item))
         {
             if (TryParseWeapon(Item, out var item))
-            {
                 player.GiveNamedItem(item);
-                return;
-           }
         }
     }
 
