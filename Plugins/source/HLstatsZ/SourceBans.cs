@@ -295,10 +295,10 @@ public class SourceBans
                     bid              = banReader.GetInt32("bid");
                     int type         = banReader.GetByte("type");
                     int endsUnix     = banReader.IsDBNull(banReader.GetOrdinal("ends"))   ? 0 : banReader.GetInt32("ends");
-                    int lenMinutes   = banReader.IsDBNull(banReader.GetOrdinal("length")) ? 0 : banReader.GetInt32("length");
+                    int len          = banReader.IsDBNull(banReader.GetOrdinal("length")) ? 0 : banReader.GetInt32("length");
 
-                    durationBan      = lenMinutes;
-                    endBan           = ComputeEnd(endsUnix, lenMinutes);
+                    durationBan      = len;
+                    endBan           = ComputeEnd(endsUnix, len);
 
                     var banType      = (type == 1) ? BanType.Banip : BanType.Ban;
                     hasBan          |= banType;
@@ -427,9 +427,9 @@ public class SourceBans
         return isAdmin;
     }
 
-    static DateTime ComputeEnd(int endsUnix, int lengthMinutes)
+    static DateTime ComputeEnd(int endsUnix, int lengthSeconds)
     {
-        if (lengthMinutes <= 0) return DateTime.MaxValue; // permanent
+        if (lengthSeconds <= 0) return DateTime.MaxValue; // permanent
         if (endsUnix <= 0)      return DateTime.UtcNow;   // clamp
         var endsUtc = DateTimeOffset.FromUnixTimeSeconds(endsUnix).UtcDateTime;
         return endsUtc > DateTime.UtcNow ? endsUtc : DateTime.UtcNow;
