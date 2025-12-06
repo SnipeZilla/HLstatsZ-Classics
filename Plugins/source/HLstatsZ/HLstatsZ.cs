@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.2";
+    public override string ModuleVersion => "2.1.3";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -309,7 +309,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["famas"]         = "famas",
         ["g3sg1"]         = "g3sg1",
         ["galilar"]       = "galilar",
-        ["m4a1_silencer"] = "m4a1",
+        ["m4a1_silencer"] = "m4a1_silencer",
         ["m4a1"]          = "m4a1",
         ["scar20"]        = "scar20",
         ["sg553"]         = "sg553",
@@ -339,14 +339,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["p250"]          = "p250",
         ["revolver"]      = "revolver",
         ["tec9"]          = "tec9",
-        ["usp_silencer"]  = "usp",
+        ["usp_silencer"]  = "usp_silencer",
         ["usp"]           = "usp",
-
-        ["taser"]         = "taser",
-        ["inferno"]       = "inferno",
-        ["molotov"]       = "inferno",
-        ["hegrenade"]     = "hegrenade",
-        ["knife"]         = "knife",
     };
 
     private static Dictionary<string, WeaponStats> GetStatsme(ulong steamId)
@@ -498,17 +492,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         });
     }
 
-    public async Task SendLog(CCSPlayerController player, string message, string verb)
+    public async Task SendLog(CCSPlayerController? player, string message, string? verb)
     {
-        if (!player.IsValid) return;
-        var name    = player.PlayerName;
-        var userid  = player.UserId;
-        var steamid = (uint)(player.SteamID - 76561197960265728);
-        var team    = player.TeamNum switch {2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
-
+        var logLine = "";
         var serverAddr = Config.ServerAddr;
+ 
+        if (player?.IsValid == true && !string.IsNullOrWhiteSpace(verb))
+        {
+            var name    = player.PlayerName;
+            var userid  = player.UserId;
+            var steamid = (uint)(player.SteamID - 76561197960265728);
+            var team    = player.TeamNum switch {2 => "TERRORIST", 3 => "CT", _ => "UNASSIGNED"};
 
-        var logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" {verb} \"{message}\"";
+            logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: \"{name}<{userid}><[U:1:{steamid}]><{team}>\" {verb} \"{message}\"";
+
+        } else if (string.IsNullOrWhiteSpace(verb)) {
+
+            logLine = $"L {DateTime.Now:MM/dd/yyyy - HH:mm:ss}: {message}";
+
+        } else { return; }
 
         try
         {
@@ -2700,6 +2702,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         SourceBans._canVote = SourceBans._mVote < 2;
+        _ = SendLog(null, "World triggered \"Round_Start\"", null);
         return HookResult.Continue;
     }
 
@@ -2901,11 +2904,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         var attacker = @event.Attacker;
         var victim   = @event.Userid;
+        var weapon  = @event.Weapon;
 
         if (victim != null && victim.IsValid)
             _menuManager.DestroyMenu(victim);
-
-        var weapon  = @event.Weapon;
 
         if (string.IsNullOrEmpty(weapon))
             return HookResult.Continue;
@@ -2932,7 +2934,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             stats.deaths++;
             FlushPlayerWeaponStats(victim);
         }
-
 
         return HookResult.Continue;
     }
