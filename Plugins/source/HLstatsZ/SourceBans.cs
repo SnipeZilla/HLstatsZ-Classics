@@ -104,7 +104,7 @@ public class SourceBans
                                               BanType Ban, DateTime ExpiryBan, DateTime ExpiryMute, DateTime ExpiryGag,
                                               int DurationBan, int DurationMute, int DurationGag,
                                               int CountBan, int CountMute, int CountGag, int CountSlay,
-                                              int aBan, int aMute, int aGag, int Bid, bool Connected )> _userCache = new();
+                                              int aBan, int aMute, int aGag, int Bid, int Immunity, bool Connected )> _userCache = new();
     private static readonly Regex Ipv4WithPort = new(@"^(?<ip>\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$", RegexOptions.Compiled);
     public static Dictionary<string, (DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need)> _vote = new();
     public static List<MapEntry> _rtv = new();
@@ -245,6 +245,7 @@ public class SourceBans
 
         bool   isAdmin      = false;
         int    aid          = 0;
+        int    immunity     = 0;
         int    aBan         = 0;
         int    aMute        = 0;
         int    aGag         = 0;
@@ -264,7 +265,7 @@ public class SourceBans
                                  BanType.None, now, now, now,
                                  0, 0, 0,
                                  0, 0, 0, 0,
-                                 0, 0, 0, 0, true);
+                                 0, 0, 0, 0, 0, true);
             return false;
         }
 
@@ -310,7 +311,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, bid, true);
+                                 aBan, aMute, aGag, bid, immunity, true);
 
             Server.NextFrame(() =>
             {
@@ -368,7 +369,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, bid, true);
+                                 aBan, aMute, aGag, bid, immunity, true);
 
             if (countBan == 0 && (countMute + countGag) > 0)
             {
@@ -383,7 +384,7 @@ public class SourceBans
 
             // === 3. ADMIN CHECK ===
             using (var adminCmd = new MySqlCommand($@"
-                SELECT a.aid, a.srv_group, CONCAT_WS('', TRIM(a.srv_flags), g.flags) AS all_flags
+                SELECT a.aid, a.immunity, a.srv_group, CONCAT_WS('', TRIM(a.srv_flags), g.flags) AS all_flags
                 FROM {adminsTable} AS a
                 LEFT JOIN {groupsTable} AS g ON g.name = a.srv_group
                 WHERE a.authid IN (@s0, @s1, @s64)
@@ -397,9 +398,10 @@ public class SourceBans
                 using var reader = await adminCmd.ExecuteReaderAsync().ConfigureAwait(false);
                 while (await reader.ReadAsync().ConfigureAwait(false))
                 {
-                    aid   = reader.GetInt32("aid");
-                    flags = reader.IsDBNull(reader.GetOrdinal("all_flags")) ? null : reader.GetString("all_flags");
-                    isAdmin = aid > 0 && !(flags is null) && flags.AsSpan().IndexOfAny('b','z') >= 0;
+                    aid      = reader.GetInt32("aid");
+                    immunity = reader.GetInt32("immunity");
+                    flags    = reader.IsDBNull(reader.GetOrdinal("all_flags")) ? null : reader.GetString("all_flags");
+                    isAdmin  = aid > 0 && !(flags is null) && flags.AsSpan().IndexOfAny('b','z') >= 0;
                 }
             }
 
@@ -407,7 +409,7 @@ public class SourceBans
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
                                  countBan, countMute, countGag, countSlay,
-                                 aBan, aMute, aGag, bid, true);
+                                 aBan, aMute, aGag, bid, immunity, true);
 
             if (isAdmin)
             {
@@ -938,6 +940,7 @@ public class SourceBans
             aMute,
             aGag,
             bid,
+            userData.Immunity,
             connected
         );
     }
@@ -1312,7 +1315,7 @@ public class SourceBans
                     Steam2 = ToSteam2(sid64);
                 } else { continue; }
 
-                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
+                var (_, _, aid, ip, _, seen, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, online) = tuple;
                 User = aid > 0 ? "A" : "U";
                 reply = $"{Name} - {Team} - {Steam2} - {User} - {seen.ToLocalTime():HH:mm}";
 

@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.3";
+    public override string ModuleVersion => "2.1.4";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -2225,6 +2225,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         int Aid = 0;
         var adminFlags = AdminFlags.None;
         var Ip = "";
+        var Immunity = 0;
 
         if (admin != null && admin?.IsValid == true && SourceBans._userCache.TryGetValue(admin.SteamID, out var userData))
         {
@@ -2234,12 +2235,14 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             Aid        = userData.Aid;
             Ip         = userData.IP;
             adminFlags = userData.Flags.ToFlags();
+            Immunity   = userData.Immunity;
 
         } else if (command != null && console == true) {
             Name       = "Console";
             isAdmin    = true;
             Ip         = GetLocalIPAddress();
             adminFlags = AdminFlags.Root;
+            Immunity   = int.MaxValue;
 
         } else { return; }
 
@@ -2260,22 +2263,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     privateChat(admin, "sz_chat.permission");
                     return;
                 }
-                target.CommitSuicide(false, true);
-                publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
-                message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
-                SendPrivateHTML(target, message, 4.0f);
                 if (SourceBans._userCache.TryGetValue(target.SteamID, out var targetData))
                 {
+                    if ( targetData.Immunity > Immunity )
+                    {
+                        privateChat(admin, "sz_chat.permission");
+                        return;
+                    }
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, Aid);
                     _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, 120, Instance?.Logger);
-                _ = DiscordWebhooks.LogAdminCommand(
+                    _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,
                                                         cmd,
                                                         $"{target.PlayerName} {reason}"
-                                                    );
+                                                        );
                     SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
                 }
+                target.CommitSuicide(false, true);
+                publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
+                message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
+                SendPrivateHTML(target, message, 4.0f);
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T("sz_chat.admin_kicked", Name,target.PlayerName,reason));
             break; }
@@ -2345,11 +2353,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                         command?.ReplyToCommand(Instance!.T("sz_chat.banning_usage", cmd));
                     return;
                 }
-                if (((cmd == "ban" && targetData.ExpiryBan == DateTime.MaxValue) ||
+                if ((((cmd == "ban" && targetData.ExpiryBan == DateTime.MaxValue) ||
                     (cmd == "silence" && (targetData.ExpiryMute == DateTime.MaxValue || targetData.ExpiryGag == DateTime.MaxValue)) ||
                     (cmd == "mute" && targetData.ExpiryMute == DateTime.MaxValue) ||
                     (cmd == "gag" && targetData.ExpiryGag == DateTime.MaxValue)) &&
-                    !adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm))
+                    !adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm)) || ( targetData.Immunity > Immunity ))
                 {
                     privateChat(admin, "sz_chat.permission");
                     return;
