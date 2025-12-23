@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.4";
+    public override string ModuleVersion => "2.1.5";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -163,7 +163,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         Instance = this;
 
-        RegisterListener<Listeners.OnTick>(OnTick);
         RegisterListener<Listeners.OnMapStart>(OnMapStart);
         RegisterListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
@@ -213,7 +212,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public override void Unload(bool hotReload)
     {
-        RemoveListener<Listeners.OnTick>(OnTick);
+
         RemoveListener<Listeners.OnMapStart>(OnMapStart);
         RemoveListener<Listeners.OnClientAuthorized>(OnClientAuthorized);
 
@@ -751,7 +750,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static void SendHTMLToAll(string message, float duration = 5.0f)
     {
         var players    = GetPlayersList();
-        float interval = 0.1f;
+        float interval = 0.0625f;
         int repeats    = (int)Math.Ceiling(duration / interval);
         int count      = 0;
 
@@ -761,8 +760,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
             foreach (var player in players)
             {
-                if (player?.IsValid == true && !player.IsBot)
-                    player.PrintToCenterHtml(message);
+                if (player?.IsValid == true)
+                   player.PrintToCenterHtml(message,5);
             }
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
@@ -772,7 +771,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static void SendPrivateHTML(CCSPlayerController player, string message, float duration = 5.0f)
     {
 
-        float interval = 0.1f;
+        float interval = 0.0625f;
         int repeats    = (int)Math.Ceiling(duration / interval);
         int count      = 0;
 
@@ -781,7 +780,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (++count > repeats) return;
 
             if (player?.IsValid == true && !player.IsBot)
-                    player.PrintToCenterHtml(message);
+                    player.PrintToCenterHtml(message,5);
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -1534,49 +1533,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
     }
 
-    // --------------------- Menu ---------------------
-    private const int PollInterval = 6;
-    private int _tickCounter = 0;
-
-    private void OnTick()
-   {
-        if (_menuManager._activeMenus.Count == 0) return;
-        if (++_tickCounter % PollInterval != 0) return;
-        _tickCounter=0;
-
-        foreach (var kvp in _menuManager._activeMenus.ToList())
-        {
-            var steamId = kvp.Key;
-            var (player, menu) = kvp.Value;
-
-            if (player == null || !player.IsValid)
-            {
-                _menuManager.DestroyMenu(player!);
-                continue;
-            }
-            var current = player.Buttons;
-            var last = _menuManager._lastButtons.TryGetValue(steamId, out var prev) ? prev : PlayerButtons.Cancel;
-
-            if (current.HasFlag(PlayerButtons.Forward) && !last.HasFlag(PlayerButtons.Forward))
-                _menuManager.HandleWasdPress(player, "W");
-
-            if (current.HasFlag(PlayerButtons.Back) && !last.HasFlag(PlayerButtons.Back))
-                _menuManager.HandleWasdPress(player, "S");
-
-            if (current.HasFlag(PlayerButtons.Moveleft) && !last.HasFlag(PlayerButtons.Moveleft))
-                _menuManager.HandleWasdPress(player, "A");
-
-            if (current.HasFlag(PlayerButtons.Moveright) && !last.HasFlag(PlayerButtons.Moveright))
-                _menuManager.HandleWasdPress(player, "D");
-
-            if (current.HasFlag(PlayerButtons.Use) && !last.HasFlag(PlayerButtons.Use))
-                _menuManager.HandleWasdPress(player, "E");
-
-            _menuManager._lastButtons[steamId] = current;
-
-        }
-    }
-
     public static void AdminMenu(CCSPlayerController player)
     {
         if (!SourceBans._enabled || player == null || !player.IsValid)
@@ -2270,6 +2226,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                         privateChat(admin, "sz_chat.permission");
                         return;
                     }
+                    message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
+                    SendPrivateHTML(target, message, 4.0f);
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, Aid);
                     _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, 120, Instance?.Logger);
                     _ = DiscordWebhooks.LogAdminCommand(
@@ -2278,12 +2236,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         cmd,
                                                         $"{target.PlayerName} {reason}"
                                                         );
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
                 }
-                target.CommitSuicide(false, true);
                 publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
-                message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
-                SendPrivateHTML(target, message, 4.0f);
+                SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
+                target.CommitSuicide(false, true);
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T("sz_chat.admin_kicked", Name,target.PlayerName,reason));
             break; }
@@ -2720,7 +2676,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var players = GetPlayersList();
 
         foreach (var player in players)
+        {
             FlushPlayerWeaponStats(player);
+            _menuManager.DestroyMenu(player);
+        }
 
         return HookResult.Continue;
 
