@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.6";
+    public override string ModuleVersion => "2.1.7";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -459,18 +459,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (player == null)
             Console.WriteLine(Instance!.T(key, args));
         else
-            Server.NextFrame(() => {
-                player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args)); 
-            });
+            player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args)); 
     }
 
     public static void publicChat(string key, params object[] args)
     {
         var players = GetPlayersList();
-        Server.NextFrame(() => {
-            foreach (var player in players)
-                player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args));
-        });
+
+        foreach (var player in players)
+            player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args));
     }
 
     public static string Colors(string input)
@@ -733,18 +730,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        Server.NextFrame(() => {
-            player.PrintToChat($"{message}");
-        });
+        player.PrintToChat($"{message}");
     }
 
     public static void SendChatToAll(string message)
     {
         var players = GetPlayersList();
-        Server.NextFrame(() => {
-            foreach (var player in players)
-                player.PrintToChat(message);
-        });
+
+        foreach (var player in players)
+            player.PrintToChat(message);
     }
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
@@ -789,27 +783,23 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static void SendChatToAdmin(string message)
     {
         var players = GetPlayersList();
-        Server.NextFrame(() => {
-            foreach (var player in players)
-            {
-                if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
-                player.PrintToChat(message);
-            }
-        });
+
+        foreach (var player in players)
+        {
+            if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
+            player.PrintToChat(message);
+        }
     }
 
     public static void SendChatToTeam(CsTeam team, string message)
     {
         var players = GetPlayersList();
-        Server.NextFrame(() => {
-            foreach (var player in players)
-            {
-                if (player.Team == team)
-                {
-                    player.PrintToChat(message);
-                }
-            }
-        });
+
+        foreach (var player in players)
+        {
+            if (player.Team == team)
+                player.PrintToChat(message);
+        }
     }
 
     public void BroadcastCenterMessage(string message, int duration = 5)
@@ -821,9 +811,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-                Server.NextFrame(() => {
-                    player.PrintToCenter($"{message}");
-                });
+        player.PrintToCenter($"{message}");
     }
 
     private HookResult ComamndListenerHandler(CCSPlayerController? player, CommandInfo info)
@@ -1415,19 +1403,17 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // Broadcast to user
-        Server.NextFrame(() => {
-            foreach (var userid in userIds)
-            {
-                var target = FindTarget(userid);
-                if (target == null || !target.IsValid) continue;
+        foreach (var userid in userIds)
+        {
+            var target = FindTarget(userid);
+            if (target == null || !target.IsValid) continue;
 
-                var hash = $"{userid}:{message}";
-                if (_lastPsayHash == hash) continue;
-                _lastPsayHash = hash;
+            var hash = $"{userid}:{message}";
+            if (_lastPsayHash == hash) continue;
+            _lastPsayHash = hash;
 
-                SendPrivateChat(target, message);
-            }
-        });
+            SendPrivateChat(target, message);
+        }
     }
 
     [ConsoleCommand("hlx_sm_csay")]
@@ -1883,7 +1869,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var name = Instance?.Trunc(userData.PlayerName,20);
         var steam2 = SourceBans.ToSteam2(SteamId);
         var status = userData.Connected ? "Online" : "Offline";
-        var builder = new HLZMenuBuilder("Server Details").NoNumber()
+        var builder = new HLZMenuBuilder("Details").NoNumber()
                      .AddNoOp($"{name} ({status})")
                      .AddNoOp($"IP: {userData.IP}")
                      .AddNoOp($"Steam64: {SteamId}")
