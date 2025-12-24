@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.5";
+    public override string ModuleVersion => "2.1.6";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -1789,7 +1789,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (!SourceBans._enabled || admin == null || !admin.IsValid)
             return;
 
-        var title = type == 0 ? "Admin Players" : "Admin Unban";
+        var title = type == 0 ? "Players" : "Unban";
         var builder = new HLZMenuBuilder($"{title}").NoNumber();
         var count =0;
         var name = "";
@@ -2655,8 +2655,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (admin != null && Instance!._menuManager._activeMenus.ContainsKey(admin.SteamID))
         {
-            if (page == 0) { Instance!._menuManager.RewindToLabel(admin, "Admin Players"); AdminPlayer(admin, page); }
-            else if (page == 1) { Instance!._menuManager.RewindToLabel(admin, "Admin Unban"); AdminPlayer(admin, page); }
+            if (page == 0) { Instance!._menuManager.RewindToLabel(admin, "Players"); AdminPlayer(admin, page); }
+            else if (page == 1) { Instance!._menuManager.RewindToLabel(admin, "Unban"); AdminPlayer(admin, page); }
             else if (page == 2) { Instance!._menuManager.DestroyMenu(admin); }
         }
         return;
