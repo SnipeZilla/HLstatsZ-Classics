@@ -19,7 +19,7 @@
     "sz_chat.admin_unmuted"        : "{yellow}{0}{default} unmuted {olive}{1}{default} → {2}",
     "sz_chat.admin_unsilenced"     : "{yellow}{0}{default} unsilenced {olive}{1}{default} → {2}",
     "sz_chat.admin_ungagged"       : "{yellow}{0}{default} ungagged {olive}{1}{default} → {2}",
-    "sz_chat.admin_slayed"         : "{yellow}{0}{default} slayed {olive}{1}{default}",
+    "sz_chat.admin_slayed"         : "{yellow}{0}{default} slayed {olive}{1}{default} → {2}",
     "sz_chat.admin_renamed"        : "{yellow}{0}{default} renamed {olive}{1}{default} → {2}",
     "sz_chat.give_items"           : "{yellow}{0}{default} gave {1} to {olive}{2}{default}",
     "sz_chat.no_items"             : "Items not available",

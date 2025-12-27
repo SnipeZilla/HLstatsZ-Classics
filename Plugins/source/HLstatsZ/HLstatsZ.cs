@@ -135,7 +135,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.7";
+    public override string ModuleVersion => "2.1.8";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -1171,6 +1171,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     privateChat(player, "sz_chat.permission");
                     return HookResult.Handled;
                 }
+                who = parts.Length > 1 ? parts[1].Trim() : "";
+                target = FindTarget(who);
+                if (target == null || !target.IsValid)
+                {
+                    privateChat(player, "sz_chat.target_notfound", who);
+                    return HookResult.Handled;
+                }
                 var duration = parts.Length > 2 ? parts[2].Trim() : "1";
                 reason  = parts.Length > 3 ? string.Join(' ', parts.Skip(3)).Trim() : "";
                 if (cmd == "slay")
@@ -1180,38 +1187,31 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                         privateChat(player, "sz_chat.generic_usage", cmd);
                         return HookResult.Handled;
                     }
-                } else {
-                    if (parts.Length < 3 || !(int.TryParse(duration, out int min) && min >= 0)) 
-                    {
-                        privateChat(player, "sz_chat.banning_usage", cmd);
-                        return HookResult.Handled;
-                    }
-                    if (min > SourceBans.Durations[0]) 
-                    {
-                        privateChat(player, "sz_chat.ban_exceeds", cmd, min);
-                        return HookResult.Handled;
-                    }
-                    if (!adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm) && min == 0)
-                    {
-                        privateChat(player, "sz_chat.permission");
-                        return HookResult.Handled;
-                    }
-                    if (reason.Length < 3)
-                    {
-                        privateChat(player, "sz_chat.short_reason");
-                        return HookResult.Handled;
-                    }
+                    reason = parts.Length > 2 ? string.Join(' ', parts.Skip(2)).Trim() : "";
+                    AdminAction(player, "slay", target, reason, null, 0);
+                    return HookResult.Handled;
                 }
-                who    = parts.Length > 1 ? parts[1].Trim() : "";
-                target = FindTarget(who);
-                if (target != null && target.IsValid)
+                if (parts.Length < 3 || !(int.TryParse(duration, out int min) && min >= 0)) 
                 {
-                    AdminAction(player, cmd, target, reason, null, int.Parse(duration)*60);
+                    privateChat(player, "sz_chat.banning_usage", cmd);
+                    return HookResult.Handled;
                 }
-                else
+                if (min > SourceBans.Durations[0]) 
                 {
-                    privateChat(player, "sz_chat.target_notfound", who);
+                    privateChat(player, "sz_chat.ban_exceeds", cmd, min);
+                    return HookResult.Handled;
                 }
+                if (!adminFlags.Has(AdminFlags.Root | AdminFlags.BanPerm) && min == 0)
+                {
+                    privateChat(player, "sz_chat.permission");
+                    return HookResult.Handled;
+                }
+                if (reason.Length < 3)
+                {
+                    privateChat(player, "sz_chat.short_reason");
+                    return HookResult.Handled;
+                }
+                AdminAction(player, cmd, target, reason, null, int.Parse(duration)*60);
             return HookResult.Handled;
 
             case "unban":
@@ -1250,6 +1250,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 }
                 AdminAction(player, cmd, target, reason, null);
             return HookResult.Handled;
+
             case "give":
                 if (!userData.IsAdmin || !adminFlags.Has(AdminFlags.Root | AdminFlags.Cheats))
                 {
@@ -2526,7 +2527,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         cmd,
                                                         $"{target.PlayerName}"
                                                     );
-                publicChat("sz_chat.admin_slayed", Name,target.PlayerName);
+                publicChat("sz_chat.admin_slayed", Name, target.PlayerName, reason);
             break;
             case "team": {
                 if (target == null || !target.IsValid) return;
