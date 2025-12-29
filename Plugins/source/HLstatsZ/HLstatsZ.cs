@@ -16,6 +16,7 @@ using CounterStrikeSharp.API.Modules.Timers;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using System.Runtime.InteropServices;
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Sockets;
 using System.Net;
@@ -104,10 +105,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public static HttpClient Http => httpClient;
     public HLstatsZMainConfig Config { get; set; } = new();
     public HLZMenuManager _menuManager = null!;
-
     public static bool _enabled = false;
     public string Trunc(string s, int max=20)
         => s.Length > max ? s.Substring(0, Math.Max(0, max - 3)) + "..." : s;
+
+    public static LogDispatcher? LogQueue;
+
+    private static GameTimer? _centerHTML;
 
     private struct WeaponStats
     {
@@ -135,7 +139,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.9";
+    public override string ModuleVersion => "2.1.10";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -208,6 +212,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                         () => SourceBans.CleanupExpiredUsers(),
                                         TimerFlags.REPEAT
         );
+
+        LogQueue = new LogDispatcher(Config.Log_Address, Config.Log_Port, Config.ServerAddr);
+
     }
 
     public override void Unload(bool hotReload)
@@ -237,6 +244,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         SourceBans._voteTimer = null;
         SourceBans._DelayedCommand?.Kill();
         SourceBans._DelayedCommand = null;
+
+        LogQueue?.Dispose();
+
     }
 
     // ------------------ Core Logic ------------------
@@ -387,7 +397,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             sb.Append("\")");
         }
 
-        _ = SendLog(player, sb.ToString(), "triggered");
+        SendLog(player, sb.ToString(), "triggered");
     }
 
     private void FlushPlayerWeaponStats(CCSPlayerController player)
@@ -488,7 +498,114 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         });
     }
 
-    public async Task SendLog(CCSPlayerController? player, string message, string? verb)
+    public sealed class LogDispatcher : IDisposable
+    {
+        private readonly ConcurrentQueue<string> _queue = new();
+        private readonly CancellationTokenSource _cts = new();
+        private readonly Task _worker;
+        private readonly HttpClient _http;
+        private readonly string _url;
+        private readonly string _serverAddr;
+
+        private const int MaxBatchSize = 10;
+        private const int RetryCount = 3;
+        private const int DelayBetweenBatchesMs = 50;
+
+        public LogDispatcher(string logAddress, int logPort, string serverAddr)
+        {
+            _url = $"http://{logAddress}:{logPort}";
+            _serverAddr = serverAddr;
+
+            _http = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(10)
+            };
+
+            _worker = Task.Run(ProcessQueueAsync);
+        }
+
+        public void Enqueue(string line)
+        {
+            _queue.Enqueue(line);
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                try
+                {
+                    if (_queue.IsEmpty)
+                    {
+                        await Task.Delay(DelayBetweenBatchesMs, _cts.Token);
+                        continue;
+                    }
+
+                    var batch = new List<string>(MaxBatchSize);
+
+                    while (batch.Count < MaxBatchSize && _queue.TryDequeue(out var line))
+                        batch.Add(line);
+
+                    await SendBatchAsync(batch);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Instance?.Logger.LogInformation($"[HLstatsZ] LogDispatcher error: {ex.Message}");
+                }
+            }
+        }
+
+        private async Task SendBatchAsync(List<string> batch)
+        {
+            if (batch.Count == 0)
+                return;
+
+            var payload = string.Join("\n", batch);
+            var content = new StringContent(payload, Encoding.UTF8, "text/plain");
+
+            for (int attempt = 1; attempt <= RetryCount; attempt++)
+            {
+                try
+                {
+                    using var request = new HttpRequestMessage(HttpMethod.Post, _url)
+                    {
+                        Content = content
+                    };
+
+                    request.Headers.Add("X-Server-Addr", _serverAddr);
+
+                    var response = await _http.SendAsync(request, _cts.Token);
+
+                    if (response.IsSuccessStatusCode)
+                        return;
+
+                    Instance?.Logger.LogInformation($"[HLstatsZ] Log send failed (attempt {attempt}): {response.StatusCode}");
+                }
+                catch (Exception ex)
+                {
+                    Instance?.Logger.LogInformation($"[HLstatsZ] Logs send exception (attempt {attempt}): {ex.Message}");
+                }
+
+                await Task.Delay(200);
+            }
+
+            Instance?.Logger.LogInformation($"[HLstatsZ] Dropping {batch.Count} logs after {RetryCount} failed attempts");
+        }
+
+        public void Dispose()
+        {
+            _cts.Cancel();
+            _worker.Wait(2000);
+            _cts.Dispose();
+            _http.Dispose();
+        }
+    }
+
+    public void SendLog(CCSPlayerController? player, string message, string? verb)
     {
         string logLine;
 
@@ -508,28 +625,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         } else { return; }
 
-        try
-        {
+        LogQueue?.Enqueue(logLine);
 
-            using var cts     = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"http://{Config.Log_Address}:{Config.Log_Port}")
-                                {
-                                    Content = new StringContent(logLine, Encoding.UTF8, "text/plain")
-                                };
-
-            request.Headers.Add("X-Server-Addr", Config.ServerAddr);
-            var response = await httpClient.SendAsync(request, cts.Token);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send failed: {response.StatusCode} - {response.ReasonPhrase}");
-            }
-
-        }
-        catch (Exception ex)
-        {
-            Instance?.Logger.LogInformation($"[HLstatsZ] HTTP log send exception: {ex.Message}");
-        }
     }
 
     private static string NormalizeName(string name)
@@ -642,7 +739,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         return 0;
     }
 
-
     private bool HandleAtCommand(CCSPlayerController player, string raw, bool isAdmin)
     {
         var text = raw.Length > 1 ? raw.Substring(1) : string.Empty;
@@ -748,35 +844,57 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
     {
-        var players    = GetPlayersList();
-        float interval = 0.0625f;
-        int repeats    = (int)Math.Ceiling(duration / interval);
-        int count      = 0;
+        if (_centerHTML != null) return;
 
-        new GameTimer(interval, () =>
+        var players = GetPlayersList();
+
+        int ticks = 1;
+        float interval = ticks / 64f;
+        int repeats = (int)Math.Ceiling(duration / interval);
+        int count = 0;
+
+        _centerHTML = Instance?.AddTickTimer(ticks, () =>
         {
-            if (++count > repeats) return;
+            if (++count > repeats)
+            {
+                _centerHTML?.Kill();
+                _centerHTML = null;
+                return;
+            }
 
             foreach (var player in players)
             {
                 if (player?.IsValid == true)
-                   player.PrintToCenterHtml(message,5);
+                    player.PrintToCenterHtml(message, 5);
             }
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
-
     }
+
 
     public static void SendPrivateHTML(CCSPlayerController player, string message, float duration = 5.0f)
     {
+        int ticks = 1;
+        float interval = ticks / 64f;
+        int repeats = (int)Math.Ceiling(duration / interval);
+        int count = 0;
 
-        float interval = 0.0625f;
-        int repeats    = (int)Math.Ceiling(duration / interval);
-        int count      = 0;
-
-        new GameTimer(interval, () =>
+        if (_centerHTML != null)
         {
-            if (++count > repeats) return;
+            _centerHTML?.Kill();
+            _centerHTML = null;
+        }
+
+        Instance!._menuManager.DestroyMenu(player);
+
+        _centerHTML = Instance?.AddTickTimer(ticks, () =>
+        {
+            if (++count > repeats)
+            {
+                _centerHTML?.Kill();
+                _centerHTML = null;
+                return;
+            }
 
             if (player?.IsValid == true && !player.IsBot)
                     player.PrintToCenterHtml(message,5);
@@ -875,7 +993,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 case "top20":
                 case "top30":
                 case "session":
-                    _ = SendLog(player, cmd, "say");
+                SendLog(player, cmd, "say");
                 return HookResult.Handled;
                 default:
                 break;
@@ -895,9 +1013,9 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var builder = new HLZMenuBuilder("Main Menu");
             if (HLstatsZ._enabled)
             {
-                builder.Add("Rank", p => _ = SendLog(p, "rank", "say"));
-                builder.Add("Next Rank", p => _ = SendLog(p, "next", "say"));
-                builder.Add("TOP 10", p => _ = SendLog(p, "top10", "say"));
+                builder.Add("Rank", p => SendLog(p, "rank", "say"));
+                builder.Add("Next Rank", p => SendLog(p, "next", "say"));
+                builder.Add("TOP 10", p => SendLog(p, "top10", "say"));
             }
             if ((SourceBans._enabled && votekick) || votemap)
                 builder.Add(T(player,"sz_menu.vote"), p => VoteMenu(p));
@@ -2658,7 +2776,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     public HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         SourceBans._canVote = SourceBans._mVote < 2;
-        _ = SendLog(null, "World triggered \"Round_Start\"", null);
+        SendLog(null, "World triggered \"Round_Start\"", null);
         return HookResult.Continue;
     }
 
@@ -2695,7 +2813,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             _  => $"with best overall"
         };
 
-        _ = SendLog(player, $"round_mvp {reasonText}", "triggered");
+        SendLog(player, $"round_mvp {reasonText}", "triggered");
         return HookResult.Continue;
     }
 
@@ -2704,7 +2822,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var player = @event.Userid;
         if (player == null || !player.IsValid) return HookResult.Continue;
 
-        _ = SendLog(player, "Defuse_Aborted", "triggered");
+        SendLog(player, "Defuse_Aborted", "triggered");
         return HookResult.Continue;
     }
 
@@ -2713,7 +2831,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var player = @event.Userid;
         if (player == null || !player.IsValid) return HookResult.Continue;
 
-        _ = SendLog(player, "Defused_The_Bomb", "triggered");
+        SendLog(player, "Defused_The_Bomb", "triggered");
         return HookResult.Continue;
     }
 
