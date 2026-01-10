@@ -33,6 +33,7 @@ public class HLstatsZMainConfig : IBasePluginConfig
     [JsonPropertyName("Log_Port")] public int Log_Port { get; set; } = 27500;
     [JsonPropertyName("BroadcastAll")] public int BroadcastAll { get; set; } = 0;
     [JsonPropertyName("ServerAddr")] public string ServerAddr { get; set; } = "";
+    [JsonPropertyName("HLZ_Prefix")] public string HLZ_Prefix { get; set; } = "";
     public int Version { get; set; } = 2;
 
     [JsonPropertyName("SourceBans")] public SourceBansConfig SourceBans { get; set; } = new();
@@ -114,6 +115,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private static GameTimer? _centerHTML;
 
+    public static string HLZ_Prefix = "";
+
     private struct WeaponStats
     {
         public int shots;
@@ -140,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.1.11";
+    public override string ModuleVersion => "2.2.0";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -188,24 +191,28 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         _menuManager = new HLZMenuManager(this);
 
-        var serverAddr = Config.ServerAddr;
-        if (string.IsNullOrWhiteSpace(serverAddr))
+        if (!string.IsNullOrWhiteSpace(Config.HLZ_Prefix))
         {
-            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-            var serverIP = GetLocalIPAddress();
-            serverAddr = $"{serverIP}:{hostPort}";
-            Config.ServerAddr=serverAddr;
+            HLZ_Prefix = Colors(Config.HLZ_Prefix.Trim())+"\x01 ";
         }
-        SourceBans.serverAddr = serverAddr;
-        SourceBans.Init(Config, Logger);
-        _ = SourceBans.GetSid();
 
         if (hotReload)
         {
+            var serverAddr = Config.ServerAddr;
+            if (string.IsNullOrWhiteSpace(serverAddr))
+            {
+                var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+                var serverIP = GetLocalIPAddress();
+                serverAddr = $"{serverIP}:{hostPort}";
+                Config.ServerAddr=serverAddr;
+            }
+            SourceBans.serverAddr = serverAddr;
+            SourceBans.Init(Config, Logger);
+            _ = SourceBans.GetSid();
             _ = SourceBans.Refresh();
-            SourceBans._canVote = true;
         }
 
+        SourceBans._canVote = true;
         SourceBans.InitAvertissements(Config);
 
         SourceBans._cleanupTimer?.Kill();
@@ -686,7 +693,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
     }
 
-
     public void SendLog(CCSPlayerController? player, string message, string? verb)
     {
         string logLine;
@@ -921,7 +927,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         var players = GetPlayersList();
 
         foreach (var player in players)
-            player.PrintToChat(message);
+            player.PrintToChat($"{message}");
     }
 
     public static void SendHTMLToAll(string message, float duration = 5.0f)
@@ -1597,7 +1603,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (_lastPsayHash == hash) return;
 
             _lastPsayHash = hash;
-            SendChatToAll(message);
+            SendChatToAll(HLZ_Prefix + message);
             return;
         }
 
@@ -1618,7 +1624,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             if (_lastPsayHash == hash) continue;
             _lastPsayHash = hash;
 
-            SendPrivateChat(target, message);
+            SendPrivateChat(target, HLZ_Prefix + message);
         }
     }
 
