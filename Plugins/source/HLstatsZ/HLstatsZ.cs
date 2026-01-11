@@ -922,16 +922,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         player.PrintToChat($"{message}");
     }
 
-    public static void SendChatToAll(string message, bool ads = false)
+    public static void SendChatToAll(string message)
     {
         var players = GetPlayersList();
 
         foreach (var player in players)
-        {
-            if (ads == true)
-                message = SourceBans.DecodeAd(message, player);
             player.PrintToChat(message);
-        }
+
     }
 
     public static void SendHTMLToAll(string message, bool ads = false)

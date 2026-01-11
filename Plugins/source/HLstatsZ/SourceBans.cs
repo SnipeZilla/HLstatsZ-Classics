@@ -259,9 +259,16 @@ public class SourceBans
         if (ads.PrintType == "html") {
             HLstatsZ.SendHTMLToAll(HLstatsZ.CenterColors(ads.Message),true);
         } else {
+            var players = HLstatsZ.GetPlayersList();
             string[] lines = ads.Message.Split(';');
-            foreach (string line in lines)
-                HLstatsZ.SendChatToAll(HLstatsZ.Colors(line.Trim()),true);
+            foreach (var player in players)
+            {
+                foreach (string line in lines)
+                {
+                    string message = DecodeAd(line, player);
+                    player.PrintToChat(HLstatsZ.Colors(message));
+                }
+            }
         }
         ads.NextTime = now.AddMinutes(ads.EveryMinutes);
     }
