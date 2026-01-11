@@ -6,6 +6,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Core.Translations;
 using GameTimer = CounterStrikeSharp.API.Modules.Timers.Timer;
 using CounterStrikeSharp.API.ValveConstants.Protobuf;
@@ -106,6 +107,8 @@ public class SourceBans
                                               int CountBan, int CountMute, int CountGag, int CountSlay,
                                               int aBan, int aMute, int aGag, int Bid, int Immunity, bool Connected )> _userCache = new();
     private static readonly Regex Ipv4WithPort = new(@"^(?<ip>\d{1,3}(?:\.\d{1,3}){3})(?::\d+)?$", RegexOptions.Compiled);
+    private static readonly Regex DecodeVar    = new(@"\{([A-Za-z0-9_\.]+)(?::([^}]+))?\}", RegexOptions.Compiled);
+
     public static Dictionary<string, (DateTime Created, CCSPlayerController? target, string? Name, string? MapName, int YES, int NO, int Need)> _vote = new();
     public static List<MapEntry> _rtv = new();
     public static Dictionary<string, Dictionary<ulong, int>> _userVote = new();
@@ -190,6 +193,57 @@ public class SourceBans
         }
     }
 
+    public static string DecodeAd(string message, CCSPlayerController player)
+    {
+        return DecodeVar.Replace(message, match =>
+        {
+            string key = match.Groups[1].Value;
+            string? arg = match.Groups[2].Success ? match.Groups[2].Value : null;
+
+            // --- PLAYER NAME ---
+            if (key.Equals("name", StringComparison.OrdinalIgnoreCase))
+            {
+                return player.PlayerName ?? "";
+            }
+
+            // --- PLAYER COUNT ---
+            if (key.Equals("players", StringComparison.OrdinalIgnoreCase))
+            {
+                return HLstatsZ.GetPlayersList().Count().ToString();
+            }
+
+            // --- Hostname ---
+            if (key.Equals("hostname", StringComparison.OrdinalIgnoreCase))
+            {
+                return ConVar.Find("hostname")?.StringValue ?? "";
+            }
+
+            // --- Map ---
+            if (key.Equals("map", StringComparison.OrdinalIgnoreCase))
+            {
+                return Server.MapName ?? "";
+            }
+
+            // --- DATE ---
+            if (key.Equals("date", StringComparison.OrdinalIgnoreCase))
+            {
+                return arg != null
+                    ? DateTime.Now.ToString(arg)
+                    : DateTime.Now.ToShortDateString();
+            }
+
+            // --- TIME ---
+            if (key.Equals("time", StringComparison.OrdinalIgnoreCase))
+            {
+                return arg != null
+                    ? DateTime.Now.ToString(arg)
+                    : DateTime.Now.ToShortTimeString();
+            }
+
+            return match.Value;
+        });
+    }
+
     private static void ShowAds(DateTime now)
     {
         if (_avertStates.Count == 0) return;
@@ -202,11 +256,13 @@ public class SourceBans
         if (ads == null)
             return;
 
-        if (ads.PrintType == "html")
-            HLstatsZ.SendHTMLToAll(HLstatsZ.CenterColors($"{ads.Message}"));
-        else
-            HLstatsZ.SendChatToAll(HLstatsZ.Colors($"{ads.Message}"));
-
+        if (ads.PrintType == "html") {
+            HLstatsZ.SendHTMLToAll(HLstatsZ.CenterColors(ads.Message),true);
+        } else {
+            string[] lines = ads.Message.Split(';');
+            foreach (string line in lines)
+                HLstatsZ.SendChatToAll(HLstatsZ.Colors(line.Trim()),true);
+        }
         ads.NextTime = now.AddMinutes(ads.EveryMinutes);
     }
 
@@ -1233,6 +1289,7 @@ public class SourceBans
 
     public static async Task Refresh()
     {
+        _userCache.Clear();
         foreach (var player in Utilities.GetPlayers())
         {
             if (player?.IsValid == true && player?.IsBot == false)

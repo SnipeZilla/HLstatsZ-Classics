@@ -143,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.0";
+    public override string ModuleVersion => "2.2.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -912,7 +912,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         return false;
     }
 
-    private static IEnumerable<CCSPlayerController> GetPlayersList()
+    public static IEnumerable<CCSPlayerController> GetPlayersList()
     {
         return Utilities.GetPlayers().Where(p => p?.IsValid == true && !p.IsBot).ToList();
     }
@@ -922,15 +922,19 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         player.PrintToChat($"{message}");
     }
 
-    public static void SendChatToAll(string message)
+    public static void SendChatToAll(string message, bool ads = false)
     {
         var players = GetPlayersList();
 
         foreach (var player in players)
-            player.PrintToChat($"{message}");
+        {
+            if (ads == true)
+                message = SourceBans.DecodeAd(message, player);
+            player.PrintToChat(message);
+        }
     }
 
-    public static void SendHTMLToAll(string message, float duration = 5.0f)
+    public static void SendHTMLToAll(string message, bool ads = false)
     {
         if (_centerHTML != null) return;
 
@@ -938,7 +942,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         int ticks = 1;
         float interval = ticks / 64f;
-        int repeats = (int)Math.Ceiling(duration / interval);
+        int repeats = (int)Math.Ceiling(5 / interval);
         int count = 0;
 
         _centerHTML = Instance?.AddTickTimer(ticks, () =>
@@ -953,7 +957,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             foreach (var player in players)
             {
                 if (player?.IsValid == true)
+                {
+                    if (ads == true)
+                        message = SourceBans.DecodeAd(message, player);
                     player.PrintToCenterHtml(message, 5);
+                }
             }
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
@@ -985,7 +993,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             }
 
             if (player?.IsValid == true && !player.IsBot)
-                    player.PrintToCenterHtml(message,5);
+                    player.PrintToCenterHtml($"{message}",5);
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -998,7 +1006,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         foreach (var player in players)
         {
             if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
-            player.PrintToChat(message);
+            player.PrintToChat($"{message}");
         }
     }
 
@@ -1009,7 +1017,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         foreach (var player in players)
         {
             if (player.Team == team)
-                player.PrintToChat(message);
+                player.PrintToChat($"{message}");
         }
     }
 
