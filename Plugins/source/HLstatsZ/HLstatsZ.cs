@@ -143,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.1";
+    public override string ModuleVersion => "2.2.2";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -196,22 +196,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             HLZ_Prefix = Colors(Config.HLZ_Prefix.Trim())+"\x01 ";
         }
 
-        if (hotReload)
+        var serverAddr = Config.ServerAddr;
+        if (string.IsNullOrWhiteSpace(serverAddr))
         {
-            var serverAddr = Config.ServerAddr;
-            if (string.IsNullOrWhiteSpace(serverAddr))
-            {
-                var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-                var serverIP = GetLocalIPAddress();
-                serverAddr = $"{serverIP}:{hostPort}";
-                Config.ServerAddr=serverAddr;
-            }
-            SourceBans.serverAddr = serverAddr;
-            SourceBans.Init(Config, Logger);
+            var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
+            var serverIP = GetLocalIPAddress();
+            serverAddr = $"{serverIP}:{hostPort}";
+            Config.ServerAddr=serverAddr;
+        }
+        SourceBans.serverAddr = serverAddr;
+        SourceBans.Init(Config, Logger);
+        if (SourceBans._enabled)
+        {
             _ = SourceBans.GetSid();
             _ = SourceBans.Refresh();
+            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is enabled for server: {serverAddr}");
         }
-
         SourceBans._canVote = true;
         SourceBans.InitAvertissements(Config);
 

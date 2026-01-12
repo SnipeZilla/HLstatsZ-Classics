@@ -183,7 +183,7 @@ public class SourceBans
 
             _avertStates.Add(new AvertissementState
             {
-                Message      = ads.Message,
+                Message      = "\u200B"+ads.Message,
                 PrintType    = ads.PrintType,
                 EveryMinutes = ads.EveryMinutes,
                 NextTime     = now.AddMinutes(offsetMinutes)
