@@ -137,7 +137,8 @@ public class SourceBans
             string.IsNullOrWhiteSpace(sb.User) || string.IsNullOrWhiteSpace(sb.Prefix) || !cfg.Enable_Sourcebans)
         {
             _enabled = false;
-            _logger?.LogInformation("[HLstatsZ] SourceBans disabled: missing config (Enable_Sourcebans/host/db/user/prefix).");
+            if (cfg.Enable_Sourcebans)
+                _logger?.LogInformation("[HLstatsZ] SourceBans disabled: missing config (host/db/user/prefix).");
             return;
         }
         var builder = new MySqlConnectionStringBuilder

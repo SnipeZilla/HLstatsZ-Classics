@@ -153,7 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (string.IsNullOrWhiteSpace(Config.Log_Address) || !Config.Enable_HLstats)
         {
             _enabled = false;
-            Instance?.Logger.LogInformation("[HLstatsZ] HLstats disabled: missing config (Enable_HLstats/Log_Address).");
+            Instance?.Logger.LogInformation("[HLstatsZ] HLstats is disabled: missing config (Enable_HLstats/Log_Address).");
             return;
         }
         _enabled = true;
@@ -197,20 +197,22 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         var serverAddr = Config.ServerAddr;
-        if (string.IsNullOrWhiteSpace(serverAddr))
+        if (string.IsNullOrWhiteSpace(Config.ServerAddr))
         {
             var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
             var serverIP = GetLocalIPAddress();
-            serverAddr = $"{serverIP}:{hostPort}";
-            Config.ServerAddr=serverAddr;
+            Config.ServerAddr = $"{serverIP}:{hostPort}";
         }
-        SourceBans.serverAddr = serverAddr;
+        SourceBans.serverAddr = Config.ServerAddr;
+
         SourceBans.Init(Config, Logger);
-        if (SourceBans._enabled)
-        {
-            _ = SourceBans.GetSid();
-            _ = SourceBans.Refresh();
-            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is enabled for server: {serverAddr}");
+        _ = SourceBans.GetSid();
+        _ = SourceBans.Refresh();
+
+        if (SourceBans._enabled) {
+            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is enabled for server: {serverAddr} (hotReload={hotReload})");
+        } else {
+            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is disabled for server: {serverAddr} (hotReload={hotReload})");
         }
         SourceBans._canVote = true;
         SourceBans.InitAvertissements(Config);
