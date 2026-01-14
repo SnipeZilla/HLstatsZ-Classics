@@ -143,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.2";
+    public override string ModuleVersion => "2.2.3";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -193,26 +193,27 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (!string.IsNullOrWhiteSpace(Config.HLZ_Prefix))
         {
-            HLZ_Prefix = Colors(Config.HLZ_Prefix.Trim())+"\x01 ";
+            HLZ_Prefix = Colors(" "+Config.HLZ_Prefix.Trim()+"\x01 ");
         }
 
-        var serverAddr = Config.ServerAddr;
         if (string.IsNullOrWhiteSpace(Config.ServerAddr))
         {
             var hostPort = ConVar.Find("hostport")?.GetPrimitiveValue<int>() ?? 27015;
-            var serverIP = GetLocalIPAddress();
+            var serverIP = ConVar.Find("ip")?.StringValue ?? GetLocalIPAddress();
             Config.ServerAddr = $"{serverIP}:{hostPort}";
         }
         SourceBans.serverAddr = Config.ServerAddr;
+
+        SourceBans.hostName   = ConVar.Find("hostname")?.StringValue ?? "";
 
         SourceBans.Init(Config, Logger);
         _ = SourceBans.GetSid();
         _ = SourceBans.Refresh();
 
         if (SourceBans._enabled) {
-            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is enabled for server: {serverAddr} (hotReload={hotReload})");
+            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is enabled for server: {SourceBans.serverAddr} (hotReload={hotReload})");
         } else {
-            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is disabled for server: {serverAddr} (hotReload={hotReload})");
+            Instance?.Logger.LogInformation($"[HLstatsZ] Sourcebans is disabled for server: {SourceBans.serverAddr} (hotReload={hotReload})");
         }
         SourceBans._canVote = true;
         SourceBans.InitAvertissements(Config);
@@ -317,8 +318,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["bluegrey"]    = "<font color='#E2EAF4'>",
         ["lightred"]    = "<font color='#EFC3CA'>",
     };
-
-    private static readonly Regex ColorRegex = new(@"\{(\w+)\}|\[\[(\w+)\]\]", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, string> WeaponCode = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -490,11 +489,13 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             player.PrintToChat(T(player, "sz_chat.prefix") + " " + T(player, key, args));
     }
 
+    private static readonly Regex ColorRegex = new(@"\{([a-zA-Z]+)\}", RegexOptions.Compiled);
+
     public static string Colors(string input)
     {
         return ColorRegex.Replace(input, m =>
         {
-            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+            var key = m.Groups[1].Value;
             return ColorCodes.TryGetValue(key, out var code) ? code.ToString() : m.Value;
         });
     }
@@ -921,7 +922,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void SendPrivateChat(CCSPlayerController player, string message)
     {
-        player.PrintToChat($"{message}");
+        player.PrintToChat(message);
     }
 
     public static void SendChatToAll(string message)
@@ -939,7 +940,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         var players = GetPlayersList();
 
-        int ticks = 1;
+        int ticks = 2;
         float interval = ticks / 64f;
         int repeats = (int)Math.Ceiling(5 / interval);
         int count = 0;
@@ -959,7 +960,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 {
                     if (ads == true)
                         message = SourceBans.DecodeAd(message, player);
-                    player.PrintToCenterHtml(message, 5);
+                    player.PrintToCenterHtml(message,5);
                 }
             }
 
@@ -969,7 +970,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void SendPrivateHTML(CCSPlayerController player, string message, float duration = 5.0f)
     {
-        int ticks = 1;
+        int ticks = 2;
         float interval = ticks / 64f;
         int repeats = (int)Math.Ceiling(duration / interval);
         int count = 0;
@@ -992,7 +993,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             }
 
             if (player?.IsValid == true && !player.IsBot)
-                    player.PrintToCenterHtml($"{message}",5);
+                    player.PrintToCenterHtml(message,5);
 
         }, TimerFlags.REPEAT | TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -1005,7 +1006,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         foreach (var player in players)
         {
             if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData) || !userData.IsAdmin) continue;
-            player.PrintToChat($"{message}");
+            player.PrintToChat(message);
         }
     }
 
@@ -1016,7 +1017,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         foreach (var player in players)
         {
             if (player.Team == team)
-                player.PrintToChat($"{message}");
+                player.PrintToChat(message);
         }
     }
 
@@ -1029,7 +1030,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public static void ShowHintMessage(CCSPlayerController player, string message)
     {
-        player.PrintToCenter($"{message}");
+        player.PrintToCenter(message);
     }
 
     private HookResult ComamndListenerHandler(CCSPlayerController? player, CommandInfo info)
@@ -1630,7 +1631,6 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             var hash = $"{userid}:{message}";
             if (_lastPsayHash == hash) continue;
             _lastPsayHash = hash;
-
             SendPrivateChat(target, HLZ_Prefix + message);
         }
     }

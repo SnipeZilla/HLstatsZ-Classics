@@ -63,7 +63,8 @@ public static class DiscordWebhooks
         var targetName = Clean(userData.PlayerName);
         var steam2 = SourceBans.ToSteam2(steam64);
         reason = Clean(reason);
-        string serverName = ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
+        string serverName = !string.IsNullOrEmpty(SourceBans.hostName)? SourceBans.hostName :
+                             ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
 
         var time = cmd.StartsWith("un") ? duration : expiry;
         bool _temp = time < int.MaxValue;

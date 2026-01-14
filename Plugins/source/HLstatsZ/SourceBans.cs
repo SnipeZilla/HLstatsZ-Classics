@@ -115,6 +115,7 @@ public class SourceBans
     public static Dictionary<ulong, string> _userNominate = new();
     private static readonly List<AvertissementState> _avertStates = new();
     public static string serverAddr = "";
+    public static string hostName = "";
     public static int serverID = 0;
     public static string VoteKick = "";
     public static string VoteMap = "";
@@ -184,7 +185,7 @@ public class SourceBans
 
             _avertStates.Add(new AvertissementState
             {
-                Message      = "\u200B"+ads.Message,
+                Message      = " "+ads.Message,
                 PrintType    = ads.PrintType,
                 EveryMinutes = ads.EveryMinutes,
                 NextTime     = now.AddMinutes(offsetMinutes)
@@ -216,13 +217,20 @@ public class SourceBans
             // --- Hostname ---
             if (key.Equals("hostname", StringComparison.OrdinalIgnoreCase))
             {
-                return ConVar.Find("hostname")?.StringValue ?? "";
+                return !string.IsNullOrEmpty(SourceBans.hostName)? SourceBans.hostName :
+                        ConVar.Find("hostname")?.StringValue ?? "Counter-Strike 2";
             }
 
             // --- Map ---
             if (key.Equals("map", StringComparison.OrdinalIgnoreCase))
             {
                 return Server.MapName ?? "";
+            }
+
+            // --- Address ---
+            if (key.Equals("address", StringComparison.OrdinalIgnoreCase))
+            {
+                return SourceBans.serverAddr ?? "";
             }
 
             // --- DATE ---
