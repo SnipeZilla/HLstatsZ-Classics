@@ -143,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.3";
+    public override string ModuleVersion => "2.2.4";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -504,7 +504,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         return ColorRegex.Replace(input, m =>
         {
-            var key = m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value;
+            var key = m.Groups[1].Value;
             return CenterColorCodes.TryGetValue(key, out var html) ? html : m.Value;
         });
     }
