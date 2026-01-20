@@ -143,7 +143,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.4";
+    public override string ModuleVersion => "2.2.5";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -2738,7 +2738,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                 target.CommitSuicide(false, true);
                 SourceBans.UpdateBanUser(target.SteamID, BanType.Slay, 0, false, Aid);
                 if (admin == null)
-                    command?.ReplyToCommand(Instance!.T("sz_chat.admin_slayed", Name,target.PlayerName));
+                    command?.ReplyToCommand(Instance!.T("sz_chat.admin_slayed", Name, target.PlayerName, reason));
                 _ = DiscordWebhooks.LogAdminCommand(
                                                         Instance!.Config,
                                                         admin,
