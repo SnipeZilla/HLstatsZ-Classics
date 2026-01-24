@@ -835,8 +835,10 @@ public class SourceBans
             }
             else if (player != null && player.IsValid)
             {
-                Server.NextFrame(() => { player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_REJECT_BANNED); });
-                HLstatsZ.publicChat("sz_chat.join_banned",player.PlayerName,remain);
+                Server.NextFrame(() => {
+                    HLstatsZ.publicChat("sz_chat.join_banned",player.PlayerName,remain);
+                    player.Disconnect(NetworkDisconnectionReason.NETWORK_DISCONNECT_KICKED);
+                });
             }
 
             _ = UpdateBlocked(sid64, userData.Bid);
