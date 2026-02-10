@@ -18,6 +18,7 @@
     "Password": "",
     "Website": "https://bans.example.com",
     "VoteKick": "public",
+    "KickDelay": 5,
     "Chat_Ban_Duration_Max": 10080,
     "Menu_Ban1_Duration": 15,
     "Menu_Ban2_Duration": 60,
@@ -45,9 +46,14 @@
   },
 
   "Avertissements": [
-  { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 10 },
-  { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "say", "EveryMinutes": 5 }
-],
+    { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 10 },
+    { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "say", "EveryMinutes": 5 }
+  ],
+
+  "Welcomes": [
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}", "PrintType": "say", "Delay": 5 }
+  ],
 
   "Discord": {
     "Username": "HLstatsZ",

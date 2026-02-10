@@ -124,6 +124,7 @@ public class SourceBans
     public static int[] Durations = new int[6];
     public static bool _canVote = false;
     public static int _mVote = 0;
+    public static float KickDelay = 5.0f;
 
     public static void Init(HLstatsZMainConfig cfg, ILogger logger)
     {
@@ -1193,7 +1194,7 @@ public class SourceBans
             _vote.Remove("kick");
             _userVote.Remove("kick");
             _ = DiscordWebhooks.Send(HLstatsZ.Instance!.Config, "kick", null, vote.target.SteamID, "Vote", 120, _logger);
-            DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", 5.0f);
+            DelayedCommand($"kickid {vote.target.UserId} \"Kicked {vote.Name} (Vote)\"", KickDelay);
             return false; // vote is done
         }
 

@@ -42,6 +42,8 @@ public class HLstatsZMainConfig : IBasePluginConfig
 
     [JsonPropertyName("Avertissements")] public List<AvertissementEntry> Avertissements { get; set; } = new();
 
+    [JsonPropertyName("Welcomes")] public List<WelcomeEntry>? Welcomes { get; set; } = new();
+
     [JsonPropertyName("Discord")] public DiscordConfig Discord { get; set; } = new();
 }
 
@@ -56,6 +58,7 @@ public class SourceBansConfig
     [JsonPropertyName("Password")] public string Password { get; set; } = "";
     [JsonPropertyName("Website")] public string Website { get; set; } = "";
     [JsonPropertyName("VoteKick")] public string VoteKick { get; set; } = "public";
+    [JsonPropertyName("KickDelay")] public int KickDelay { get; set; } = 5;
     [JsonPropertyName("Chat_Ban_Duration_Max")] public int Chat_Ban_Duration_Max { get; set; } = 10080;
     [JsonPropertyName("Menu_Ban1_Duration")] public int Menu_Ban1_Duration { get; set; } = 15;
     [JsonPropertyName("Menu_Ban2_Duration")] public int Menu_Ban2_Duration { get; set; } = 60;
@@ -87,6 +90,13 @@ public class AvertissementEntry
     [JsonPropertyName("Message")] public string Message { get; set; } = "";
     [JsonPropertyName("PrintType")] public string PrintType { get; set; } = "say";
     [JsonPropertyName("EveryMinutes")] public int EveryMinutes { get; set; } = 5;
+}
+
+public class WelcomeEntry
+{
+    public string Welcome { get; set; } = "";
+    public string PrintType { get; set; } = "say";
+    public int Delay { get; set; } = 3;
 }
 
 public sealed class DiscordConfig
@@ -143,7 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.6";
+    public override string ModuleVersion => "2.2.7";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -164,6 +174,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
        SourceBans.Durations[3] = Config.SourceBans.Menu_Ban3_Duration    *60;
        SourceBans.Durations[4] = Config.SourceBans.Menu_Ban4_Duration    *60;
        SourceBans.Durations[5] = Config.SourceBans.Menu_Ban5_Duration    *60;
+
+       SourceBans.KickDelay = (float)Config.SourceBans.KickDelay;
 
     }
 
@@ -1033,6 +1045,34 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         player.PrintToCenter(message);
     }
 
+    public static void SendWelcome(CCSPlayerController player)
+    {
+        if (Instance!.Config.Welcomes == null || player.IsBot)
+            return;
+
+        foreach (var entry in Instance!.Config.Welcomes)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Welcome))
+                continue;
+
+        new GameTimer(MathF.Max(0.01f,entry.Delay), () =>
+            {
+                string msg = SourceBans.DecodeAd(entry.Welcome, player);
+
+                if (entry.PrintType == "html")
+                {
+                    SendPrivateHTML(player, CenterColors(msg),5.0f);
+                }
+                else
+                {
+                    if (player.IsValid == true && !player.IsBot)
+                        player.PrintToChat(Colors(msg));
+                }
+            });
+        }
+
+    }
+
     private HookResult ComamndListenerHandler(CCSPlayerController? player, CommandInfo info)
     {
         if (player == null || !player.IsValid)
@@ -1040,6 +1080,10 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
         if (!SourceBans._userCache.TryGetValue(player.SteamID, out var userData))
             return HookResult.Continue;
+
+        // ----- Handle Kick/Ban -----
+        if ((userData.Ban & BanType.Gag)!=0)
+            return HookResult.Handled;
 
         bool MenuIsOpen = _menuManager._activeMenus.ContainsKey(player.SteamID);
         var command = info.ArgByIndex(0).ToLower().Trim();
@@ -1097,7 +1141,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // ----- Handle Gag -----
-        if ((userData.Ban & BanType.Gag)!=0)
+        if ((userData.Ban & (BanType.Banip | BanType.Ban | BanType.Kick))!=0)
             return HookResult.Handled;
 
         // ---- Handle Menu Command ----
@@ -2432,7 +2476,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                         return;
                     }
                     message  = CenterColors(Instance!.Localizer.ForPlayer(target, "sz_html.you_are_kicked",reason));
-                    SendPrivateHTML(target, message, 4.0f);
+                    SendPrivateHTML(target, message, SourceBans.KickDelay);
                     SourceBans.UpdateBanUser(target.SteamID, BanType.Kick, 120, false, Aid);
                     _ = DiscordWebhooks.Send(Instance!.Config, cmd, admin, target.SteamID, reason, 120, Instance?.Logger);
                     _ = DiscordWebhooks.LogAdminCommand(
@@ -2443,7 +2487,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         );
                 }
                 publicChat("sz_chat.admin_kicked", Name,target.PlayerName,reason);
-                SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"",3.0f);
+                SourceBans.DelayedCommand($"kickid {target.UserId} \"Kicked {target.PlayerName} ({reason})\"", SourceBans.KickDelay);
                 target.CommitSuicide(false, true);
                 if (admin == null)
                     command?.ReplyToCommand(Instance!.T("sz_chat.admin_kicked", Name,target.PlayerName,reason));
@@ -2558,12 +2602,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                     command?.ReplyToCommand(Instance!.T(message, Name,target.PlayerName, remaining, reason));
                 publicChat(message, Name,target.PlayerName,remaining,reason);
                 message = CenterColors(Instance!.Localizer.ForPlayer(target, content, reason, remaining, Instance!.Config.SourceBans.Website));
-                SendPrivateHTML(target, message, 4.0f);
                 privateChat(target,"sz_chat.sourcebans_website",Instance!.Config.SourceBans.Website);
                 if (cmd == "ban" || cmd == "banip")
                 {
                     target.CommitSuicide(false, true);
-                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"",3.0f);
+                    target.Freeze();
+                    SendPrivateHTML(target, message, SourceBans.KickDelay);
+                    SourceBans.DelayedCommand($"kickid {target.UserId} \"Banned {target.PlayerName} ({reason})\"", SourceBans.KickDelay);
+                } else {
+                    SendPrivateHTML(target, message, 5.0f);
                 }
             break; }
             case "ungag":
@@ -2969,6 +3016,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (!isValid)
             _ = SourceBans.isAdmin(player);
 
+        SendWelcome(player);
+
         return HookResult.Continue;
     }
 
@@ -3154,6 +3203,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             {
                 if ( !string.Equals(userCached.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase) )
                     SourceBans.Rename(player, userCached.PlayerName);
+
+                if ((userCached.Ban & (BanType.Banip | BanType.Ban | BanType.Kick)) != 0) {
+                    player.Freeze();
+                    player.RemoveWeapons();
+                }
             }
         });
 
