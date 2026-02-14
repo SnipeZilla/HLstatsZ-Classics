@@ -153,7 +153,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.7";
+    public override string ModuleVersion => "2.2.8";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -1082,7 +1082,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Continue;
 
         // ----- Handle Kick/Ban -----
-        if ((userData.Ban & BanType.Gag)!=0)
+        if ((userData.Ban & (BanType.Banip | BanType.Ban | BanType.Kick))!=0)
             return HookResult.Handled;
 
         bool MenuIsOpen = _menuManager._activeMenus.ContainsKey(player.SteamID);
@@ -1141,7 +1141,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         }
 
         // ----- Handle Gag -----
-        if ((userData.Ban & (BanType.Banip | BanType.Ban | BanType.Kick))!=0)
+        if ((userData.Ban & BanType.Gag)!=0)
             return HookResult.Handled;
 
         // ---- Handle Menu Command ----
