@@ -171,18 +171,18 @@ You can disable either system without affecting core functionality or admin work
 }
 ```
 ## Ads
-Player name    → {name}
-Player count   → {players}
-Hostname       → {hostname}
-Map            → {map}
-Server Address → {address}
-Date           → {date} (c# arg accepted)
-Time           → {time}
+Player name    → {name}<br>
+Player count   → {players}<br>
+Hostname       → {hostname}<br>
+Map            → {map}<br>
+Server Address → {address}<br>
+Date           → {date} (c# arg accepted)<br>
+Time           → {time}<br>
 
 ### Extra var On Player death
-{victim}
-{killer}
-{weapon}
+{victim}<br>
+{killer}<br>
+{weapon}<br>
 {headshot} → 'yes' or 'no'
 
 
