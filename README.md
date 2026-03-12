@@ -27,7 +27,7 @@ You can disable either system without affecting core functionality or admin work
 ## 🛡️ Admin Commands Chat & Client console (SourceBans)
 | Command         | Description                        |
 | --------------- | ---------------------------------- |
-| **@y**          | Admin message to global chat       |
+| **@**           | Admin message to global chat       |
 | **@s**          | Admin → Spectators chat            |
 | **@ct**         | Admin → Counter-Terrorists         |
 | **@t**          | Admin → Terrorists                 |
@@ -114,6 +114,7 @@ You can disable either system without affecting core functionality or admin work
     "Password": "",
     "Website": "https://bans.example.com",
     "VoteKick": "public",
+    "KickDelay": 5,
     "Chat_Ban_Duration_Max": 10080,
     "Menu_Ban1_Duration": 15,
     "Menu_Ban2_Duration": 60,
@@ -141,14 +142,27 @@ You can disable either system without affecting core functionality or admin work
   },
 
   "Avertissements": [
-  { "Message": "Welcome To Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 12 },
-  { "Message": "Visit Snipe{red}Zilla{default}.com", "PrintType": "say", "EveryMinutes": 15 }
+    { "Message": "<div style='width:220px;text-align:center;'><img src=\"https://avatars.akamai.steamstatic.com/48a539ae74f42f72fd58b3cf8ba02e3054451f7b.jpg\" width='32' height='32' style='width:32px;height:32px;border-radius:4px;display:block;margin:0 auto 6px auto;' /><div style='color:#ffffff;font-size:20px;font-weight:bold;text-shadow:1px 1px 2px #000000;'>Welcome to the server!</div></div>", "PrintType": "html", "EveryMinutes": 1 }
+  ],
+
+  "Welcomes": [
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}!<br>{blue}{name}{default}, We were waiting for you!", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}!<br>Oh look who’s back — {name}! Try not to die instantly this time...", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}, {name}!<br>We missed you...kind of.", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}, {name}!<br>Weather report for {map}: 100% dying.", "PrintType": "html", "Delay": 10 }
+  ],
+
+  "PlayerDeath": [
+    { "Message": "{red}{victim}{default}, you got terminated by {blue}{killer}{default} using {green}{weapon}{default} (Headshot:{headshot}).<br>Ouch.", "PrintType": "html", "Duration": 5 },
+    { "Message": "Dead again...<br>Courtesy of Snipe{red}Zilla{default}", "PrintType": "html", "Duration": 5 },
+    { "Message": "{red}{victim}{default},<br>you got a free trip to spectator mode,<br>Courtesy of {gold}{killer}{default}.", "PrintType": "html", "Duration": 5 },
+    { "Message": "{red}{victim}{default},<br>your extended warranty does not cover {green}{weapon}{default} damage.", "PrintType": "html", "Duration": 5 }
   ],
 
   "Discord": {
     "Username": "HLstatsZ",
     "WebhookUrl": "https://discord.com/api/webhooks/123456789/........",
-	"LogsWebhookUrl": "https://discord.com/api/webhooks/123456789/........",
+    "LogsWebhookUrl": "https://discord.com/api/webhooks/123456789/........",
     "ColorPermanent": "#FF0000",
     "ColorWithExpiration": "#FF9900",
     "ColorUnban": "#00FF00",
@@ -156,5 +170,19 @@ You can disable either system without affecting core functionality or admin work
   }
 }
 ```
+## Ads
+Player name    → {name}
+Player count   → {players}
+Hostname       → {hostname}
+Map            → {map}
+Server Address → {address}
+Date           → {date} (c# arg accepted)
+Time           → {time}
+
+### Extra var On Player death
+{victim}
+{killer}
+{weapon}
+{headshot} → 'yes' or 'no'
 
 

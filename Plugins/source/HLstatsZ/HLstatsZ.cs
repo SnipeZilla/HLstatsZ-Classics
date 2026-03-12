@@ -44,6 +44,8 @@ public class HLstatsZMainConfig : IBasePluginConfig
 
     [JsonPropertyName("Welcomes")] public List<WelcomeEntry>? Welcomes { get; set; } = new();
 
+    [JsonPropertyName("PlayerDeath")] public List<PlayerDeathEntry>? PlayerDeath { get; set; } = new();
+
     [JsonPropertyName("Discord")] public DiscordConfig Discord { get; set; } = new();
 }
 
@@ -89,14 +91,21 @@ public class AvertissementEntry
 {
     [JsonPropertyName("Message")] public string Message { get; set; } = "";
     [JsonPropertyName("PrintType")] public string PrintType { get; set; } = "say";
-    [JsonPropertyName("EveryMinutes")] public int EveryMinutes { get; set; } = 5;
+    [JsonPropertyName("EveryMinutes")] public int EveryMinutes { get; set; } = 15;
 }
 
 public class WelcomeEntry
 {
     public string Welcome { get; set; } = "";
     public string PrintType { get; set; } = "say";
-    public int Delay { get; set; } = 3;
+    public int Delay { get; set; } = 10;
+}
+
+public class PlayerDeathEntry
+{
+    public string Message { get; set; } = "";
+    public string PrintType { get; set; } = "say";
+    public int Duration { get; set; } = 5;
 }
 
 public sealed class DiscordConfig
@@ -1050,27 +1059,75 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if (Instance!.Config.Welcomes == null || player.IsBot)
             return;
 
-        foreach (var entry in Instance!.Config.Welcomes)
-        {
-            if (string.IsNullOrWhiteSpace(entry.Welcome))
-                continue;
+        var entries = Instance!.Config.Welcomes?
+            .Where(e => !string.IsNullOrWhiteSpace(e.Welcome))
+            .ToList();
+        if (entries == null || entries.Count == 0)
+            return;
+
+        var entry = entries[Random.Shared.Next(entries.Count)];
 
         new GameTimer(MathF.Max(0.01f,entry.Delay), () =>
+        {
+            string msg = SourceBans.DecodeAd(entry.Welcome, player);
+
+            if (entry.PrintType == "html")
             {
-                string msg = SourceBans.DecodeAd(entry.Welcome, player);
+                SendPrivateHTML(player, CenterColors(msg),5.0f);
+            }
+            else
+            {
+                if (player.IsValid == true && !player.IsBot)
+                    player.PrintToChat(Colors(msg));
+            }
+        });
 
-                if (entry.PrintType == "html")
-                {
-                    SendPrivateHTML(player, CenterColors(msg),5.0f);
-                }
-                else
-                {
-                    if (player.IsValid == true && !player.IsBot)
-                        player.PrintToChat(Colors(msg));
-                }
-            });
-        }
+    }
 
+    public static string DeathVariables(string msg, CCSPlayerController victim, CCSPlayerController? killer, string weapon, bool headshot)
+    {
+        if (victim == null || victim.IsValid != true)
+            return msg;
+    
+        string victimName = victim.PlayerName ?? "Unknown";
+        string killerName = (killer?.IsValid == true) ? killer.PlayerName : "World";
+    
+        msg = msg.Replace("{victim}", victimName);
+        msg = msg.Replace("{killer}", killerName);
+        msg = msg.Replace("{weapon}", weapon);
+        msg = msg.Replace("{headshot}", headshot ? "Yes" : "No");
+    
+        return msg;
+    }
+
+
+    public static void SendDeathMsg(CCSPlayerController victim, CCSPlayerController? killer, EventPlayerDeath ev)
+    {
+        var entries = Instance!.Config.PlayerDeath?
+            .Where(e => !string.IsNullOrWhiteSpace(e.Message))
+            .ToList();
+
+        if (entries == null || entries.Count == 0)
+            return;
+
+        var entry = entries[Random.Shared.Next(entries.Count)];
+
+        string safeWeapon = ev?.Weapon ?? "unknown";
+        bool safeHeadshot = ev?.Headshot == true;
+
+        new GameTimer(0.01f, () =>
+        {
+            if (victim?.IsValid != true)
+                return;
+
+            string msg = DeathVariables(entry.Message, victim, killer, safeWeapon, safeHeadshot);
+            msg = SourceBans.DecodeAd(msg, victim);
+
+            if (entry.PrintType.Equals("html", StringComparison.OrdinalIgnoreCase))
+                SendPrivateHTML(victim, CenterColors(msg), entry.Duration);
+            else
+                victim.PrintToChat(Colors(msg));
+        });
     }
 
     private HookResult ComamndListenerHandler(CCSPlayerController? player, CommandInfo info)
@@ -3154,6 +3211,11 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             ref var stats = ref GetWeaponStats(dict, wCode);
             stats.deaths++;
             FlushPlayerWeaponStats(victim);
+        }
+
+        if (victim != null && victim.IsValid && !victim.IsBot)
+        {
+            SendDeathMsg(victim, attacker, @event);
         }
 
         return HookResult.Continue;

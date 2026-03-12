@@ -46,13 +46,22 @@
   },
 
   "Avertissements": [
-    { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "html", "EveryMinutes": 10 },
-    { "Message": "Message from Snipe{red}Zilla{default}", "PrintType": "say", "EveryMinutes": 5 }
+    { "Message": "<div style='width:220px;text-align:center;'><img src=\"https://avatars.akamai.steamstatic.com/48a539ae74f42f72fd58b3cf8ba02e3054451f7b.jpg\" width='32' height='32' style='width:32px;height:32px;border-radius:4px;display:block;margin:0 auto 6px auto;' /><div style='color:#ffffff;font-size:20px;font-weight:bold;text-shadow:1px 1px 2px #000000;'>Welcome to the server!</div></div>", "PrintType": "html", "EveryMinutes": 15 },
+    { "Message": "Welcome to Snipe{red}Zilla{default}!", "PrintType": "say", "EveryMinutes": 10 }
   ],
 
   "Welcomes": [
-    { "Welcome": "Welcome to Snipe{red}Zilla{default}", "PrintType": "html", "Delay": 10 },
-    { "Welcome": "Welcome to Snipe{red}Zilla{default}", "PrintType": "say", "Delay": 5 }
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}!<br>{blue}{name}{default}, We were waiting for you!", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}!<br>Oh look who’s back — {name}! Try not to die instantly this time...", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}, {name}!<br>We missed you...kind of.", "PrintType": "html", "Delay": 10 },
+    { "Welcome": "Welcome to Snipe{red}Zilla{default}, {name}!<br>Weather report for {map}: 100% dying.", "PrintType": "html", "Delay": 10 }
+  ],
+
+  "PlayerDeath": [
+    { "Message": "{red}{victim}{default}, you got terminated by {blue}{killer}{default} using {green}{weapon}{default} (Headshot:{headshot}).<br>Ouch.", "PrintType": "html", "Duration": 5 },
+    { "Message": "Dead again...<br>Courtesy of Snipe{red}Zilla{default}", "PrintType": "html", "Duration": 5 },
+    { "Message": "{red}{victim}{default},<br>you got a free trip to spectator mode,<br>Courtesy of {gold}{killer}{default}.", "PrintType": "html", "Duration": 5 },
+    { "Message": "{red}{victim}{default},<br>your extended warranty does not cover {green}{weapon}{default} damage.", "PrintType": "html", "Duration": 5 }
   ],
 
   "Discord": {
