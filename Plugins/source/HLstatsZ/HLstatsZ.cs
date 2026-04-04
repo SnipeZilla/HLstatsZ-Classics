@@ -162,7 +162,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.9";
+    public override string ModuleVersion => "2.2.10";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -3061,17 +3061,18 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
             return HookResult.Continue;
 
         bool isValid = false;
+        bool wasOffline = false;
 
         if (SourceBans._userCache.TryGetValue(player.SteamID, out var userCached))
         {
             isValid = SourceBans.Validator(player);
             if ( !string.Equals(userCached.PlayerName, player.PlayerName, StringComparison.OrdinalIgnoreCase) )
                 SourceBans.Rename(player, userCached.PlayerName);
-
+            wasOffline = !userCached.Connected;
         }
 
-        if (!isValid)
-            _ = SourceBans.isAdmin(player);
+        if (!isValid || wasOffline)
+            _ = SourceBans.isAdmin(player, wasOffline);
 
         SendWelcome(player);
 
