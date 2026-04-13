@@ -162,7 +162,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.10";
+    public override string ModuleVersion => "2.2.11";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -866,8 +866,8 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         {
 
             var report = text.Trim();
-            if (report.Length == 0) return true;
-            if (!isAdmin)
+            if (report.Length == 0) return false;
+            if (isAdmin)
             {
                 SendChatToAdmin(T(player, "sz_chat.prefix") + " " + T(player, local, player.PlayerName, Colors(report)));
                 _ = DiscordWebhooks.LogAdminCommand(
@@ -877,37 +877,37 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
                                                         Colors(report),
                                                         isAdmin
                                                     );
+                return true;
             } else {
-                SendChatToAll(T(player, "sz_chat.prefix") + " " + T(player, local, player.PlayerName, Colors(report)));
+                return false;
             }
-            return true;
         }
 
         if (isAdmin && text.StartsWith("s ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(2).Trim();
-            if (msg.Length == 0) return true;
+            if (msg.Length == 0) return false;
             SendChatToTeam(CsTeam.Spectator,T(player, "sz_chat.prefix") + " " +  T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{msg}")));
             return true;
         }
         if (isAdmin && text.StartsWith("ct ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(3).Trim();
-            if (msg.Length == 0) return true;
+            if (msg.Length == 0) return false;
             SendChatToTeam(CsTeam.CounterTerrorist,T(player, "sz_chat.prefix") + " " +  T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{msg}")));
             return true;
         }
         if (isAdmin && text.StartsWith("t ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("tt ", StringComparison.OrdinalIgnoreCase) || text.StartsWith("ts ", StringComparison.OrdinalIgnoreCase))
         {
             msg = text.Substring(2).Trim();
-            if (msg.Length == 0) return true;
+            if (msg.Length == 0) return false;
             SendChatToTeam(CsTeam.Terrorist, T(player, "sz_chat.prefix") + " " + T(player,"sz_chat.admin_say",player.PlayerName,Colors($"{msg}")));
             return true;
         }
 
         var who = text.Substring(0, firstSpace).Trim();
         msg     = text.Substring(firstSpace + 1).Trim();
-        if (msg.Length == 0) return true;
+        if (msg.Length == 0) return false;
 
         if (who.Equals("all", StringComparison.OrdinalIgnoreCase))
         {
