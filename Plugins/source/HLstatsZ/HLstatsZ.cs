@@ -162,7 +162,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.2.11";
+    public override string ModuleVersion => "2.2.12";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -2996,8 +2996,15 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     public HookResult OnRoundMvp(EventRoundMvp @event, GameEventInfo info)
     {
-        var reason = @event.Reason;
-        var player = @event.Userid;
+        CCSPlayerController? player;
+        int reason;
+        try
+        {
+            player = @event.Userid;
+            reason = @event.Reason;
+        }
+        catch (NativeException) { return HookResult.Continue; }
+
         if (player == null || !player.IsValid) return HookResult.Continue;
 
         string reasonText = reason switch
