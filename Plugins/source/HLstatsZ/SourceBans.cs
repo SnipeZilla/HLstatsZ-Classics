@@ -514,16 +514,19 @@ public class SourceBans
     {
         await isAdmin(player);
 
-        if (player != null && player.IsValid)
+        Server.NextFrame(() =>
         {
-            if (_userCache.TryGetValue(player.SteamID, out var cached))
+            if (player != null && player.IsValid)
             {
-                Validator(player);
-                UpdateBanUser(player.SteamID, BanType.None, 0, false, 0, true);
-            } else{
-               _logger?.LogError("[HLstatsZ] SourceBans admin check failed for {PlayerName} {SteamID}", player.PlayerName, player.SteamID);
+                if (_userCache.TryGetValue(player.SteamID, out var cached))
+                {
+                    Validator(player);
+                    UpdateBanUser(player.SteamID, BanType.None, 0, false, 0, true);
+                } else {
+                    _logger?.LogError("[HLstatsZ] SourceBans admin check failed for {PlayerName} {SteamID}", player.PlayerName, player.SteamID);
+                }
             }
-        }
+        });
     }
 
     public class MapEntry
@@ -1309,17 +1312,19 @@ public class SourceBans
     public static async Task Refresh()
     {
         _userCache.Clear();
-        foreach (var player in Utilities.GetPlayers())
-        {
-            if (player?.IsValid == true && player?.IsBot == false)
-            {
-                bool _ = await isAdmin(player, true);
+        var players = Utilities.GetPlayers()
+            .Where(p => p?.IsValid == true && p?.IsBot == false)
+            .ToList();
 
+        foreach (var player in players)
+        {
+            bool _ = await isAdmin(player, true);
+
+            Server.NextFrame(() =>
+            {
                 if (player.IsValid && !player.IsBot)
-                {
                     SourceBans.Validator(player);
-                }
-            }
+            });
         }
     }
 
