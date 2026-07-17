@@ -162,7 +162,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.3.1";
+    public override string ModuleVersion => "2.3.2";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -351,7 +351,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         ["m4a1_silencer"] = "m4a1_silencer",
         ["m4a1"]          = "m4a1",
         ["scar20"]        = "scar20",
-        ["sg553"]         = "sg553",
+        ["sg556"]         = "sg556",
         ["ssg08"]         = "ssg08",
 
         ["mac10"]         = "mac10",
@@ -2272,7 +2272,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         builder.Add("[Rifle] Galil AR", _ => AdminConfirm(player,target,"give 1 GalilAR"));
         builder.Add("[Rifle] M4A1-S", _ => AdminConfirm(player,target,"give 1 M4A1S"));
         builder.Add("[Rifle] SCAR-20", _ => AdminConfirm(player,target,"give 1 SCAR20"));
-        builder.Add("[Rifle] SG 553", _ => AdminConfirm(player,target,"give 1 SG553"));
+        builder.Add("[Rifle] SG 556", _ => AdminConfirm(player,target,"give 1 SG556"));
         builder.Add("[Rifle] SSG 08", _ => AdminConfirm(player,target,"give 1 SSG08"));
         builder.Add("[SMG] MAC-10", _ => AdminConfirm(player,target,"give 1 Mac10"));
         builder.Add("[SMG] MP5-SD", _ => AdminConfirm(player,target,"give 1 MP5SD"));
