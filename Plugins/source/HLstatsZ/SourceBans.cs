@@ -353,7 +353,7 @@ public class SourceBans
                 FROM `{_prefix}_bans`
                 WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
                   AND  (RemovedOn IS NULL OR RemovedOn = 0)
-                  AND (created = ends OR ends > UNIX_TIMESTAMP())
+                  AND (length <= 0 OR created = ends OR ends > UNIX_TIMESTAMP())
                 ORDER BY ends DESC
                 LIMIT 1;", dbh))
             {
@@ -405,7 +405,7 @@ public class SourceBans
                 WHERE authid IN (@s0, @s1, @s64)
                   AND type IN (1, 2)
                   AND (RemovedOn IS NULL OR RemovedOn = 0)
-                  AND (created = ends OR ends > UNIX_TIMESTAMP())
+                  AND (length <= 0 OR created = ends OR ends > UNIX_TIMESTAMP())
                 ORDER BY ends DESC;", dbh))
             {
                 commsCmd.Parameters.AddWithValue("@s0", steam2_v0);
@@ -618,7 +618,7 @@ public class SourceBans
             WHERE authid = @authid
               AND type = @type
               AND (RemovedOn IS NULL OR RemovedOn = 0)
-              AND (created = ends OR ends > UNIX_TIMESTAMP())
+              AND (length <= 0 OR created = ends OR ends > UNIX_TIMESTAMP())
             ORDER BY ends DESC
             LIMIT 1;";
 
@@ -733,7 +733,7 @@ public class SourceBans
                     FROM `{_prefix}_bans`
                     WHERE (authid IN (@s0, @s1, @s64) OR (type = 1 AND @ip IS NOT NULL AND ip = @ip))
                       AND RemovedOn = 0
-                      AND (created = ends OR ends > UNIX_TIMESTAMP())
+                      AND (length <= 0 OR created = ends OR ends > UNIX_TIMESTAMP())
                     ORDER BY ends DESC
                     LIMIT 1;", dbh))
                 {
