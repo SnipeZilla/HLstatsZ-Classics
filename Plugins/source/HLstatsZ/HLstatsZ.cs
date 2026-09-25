@@ -162,7 +162,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
 
     private string? _lastPsayHash;
     public override string ModuleName => "HLstatsZ Classics";
-    public override string ModuleVersion => "2.4.0";
+    public override string ModuleVersion => "2.4.1";
     public override string ModuleAuthor => "SnipeZilla";
 
     public void OnConfigParsed(HLstatsZMainConfig config)
@@ -1781,6 +1781,7 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     [ConsoleCommand("unsilence")]
     [ConsoleCommand("unban")]
     [ConsoleCommand("rename")]
+    [ConsoleCommand("sm_rehash")]   // sent by the SourceBans web panel after admin and group changes
     public void OnCssCommand(CCSPlayerController? player, CommandInfo command)
     {
         if (player != null) return;
@@ -1831,12 +1832,61 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
         if ( cmd == "camera" || cmd == "players")
         {
             SourceBans.CameraCommand(null, command, cmd == "camera" ? 1 : 0);
-        } else if (cmd == "refresh") {
+        } else if (cmd == "refresh" || cmd == "sm_rehash") {
             _ = SourceBans.Refresh();
             command.ReplyToCommand(T("sz_console.refresh"));
         } else {
             AdminAction(null, cmd, target, args, command, number, true, target64);
         }
+    }
+
+    // SourceComms commands the SourceBans web panel sends by RCON when it blocks a player, or lifts a block:
+    //   sc_fw_block <1 mute | 2 gag | 3 both> <minutes, 0 = permanent> <steamid>
+    //   sc_fw_unmute <steamid>, sc_fw_ungag <steamid>
+    [ConsoleCommand("sc_fw_block")]
+    [ConsoleCommand("sc_fw_unmute")]
+    [ConsoleCommand("sc_fw_ungag")]
+    public void OnSourceCommsCommand(CCSPlayerController? player, CommandInfo command)
+    {
+        if (player != null) return;
+
+        var parts = command.GetCommandString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var cmd   = parts[0].ToLowerInvariant();
+        bool block = cmd == "sc_fw_block";
+        if (parts.Length < (block ? 4 : 2)) return;
+
+        ulong sid64 = SourceBans.ToSteam64(parts[block ? 3 : 1].Trim('"'));
+        var target  = Utilities.GetPlayers().FirstOrDefault(p => p?.IsValid == true && !p.IsBot && p.SteamID == sid64);
+        if (sid64 == 0 || target == null || !SourceBans._userCache.ContainsKey(sid64)) return;
+
+        if (block)
+        {
+            if (!int.TryParse(parts[1], out var kind) || !int.TryParse(parts[2], out var minutes)) return;
+            var type = kind == 1 ? BanType.Mute : kind == 2 ? BanType.Gag : kind == 3 ? BanType.Silence : BanType.None;
+            if (type == BanType.None) return;
+
+            SourceBans.UpdateBanUser(sid64, type, minutes > 0 ? minutes * 60 : int.MaxValue, false, 0);
+            var remain = minutes > 0 ? SourceBans.FormatTimeLeft(target, TimeSpan.FromMinutes(minutes)) + " remaining" : T(target, "sz_menu.permanently");
+            if ((type & BanType.Mute) != 0)
+            {
+                target.VoiceFlags = VoiceFlags.Muted;
+                privateChat(target, "sz_chat.join_muted", target.PlayerName, remain);
+            }
+            if ((type & BanType.Gag) != 0)
+                privateChat(target, "sz_chat.join_gagged", target.PlayerName, remain);
+        }
+        else if (cmd == "sc_fw_unmute")
+        {
+            SourceBans.UpdateBanUser(sid64, BanType.Mute, 0, true, 0);
+            target.VoiceFlags = VoiceFlags.Normal;
+            privateChat(target, "sz_chat.unmuted");
+        }
+        else
+        {
+            SourceBans.UpdateBanUser(sid64, BanType.Gag, 0, true, 0);
+            privateChat(target, "sz_chat.ungagged");
+        }
+        command.ReplyToCommand($"[HLstatsZ] {cmd}: {target.PlayerName}");
     }
 
     [ConsoleCommand("hlx_sm_swap")]
@@ -3054,18 +3104,25 @@ public class HLstatsZ : BasePlugin, IPluginConfig<HLstatsZMainConfig>
     {
         ulong sid64 = steamId.SteamId64;
 
+        // A player coming back (disconnected since) is checked against the database again, so bans, unbans
+        // and blocks made meanwhile (web panel, other servers) apply as they join; the cache only saves
+        // queries while they stay connected.
         var hasCache = SourceBans._userCache.TryGetValue(sid64, out var cached);
-        bool refresh = !hasCache || cached.Updated <= DateTime.UtcNow - TimeSpan.FromMinutes(2);
+        bool refresh = !hasCache || !cached.Connected || cached.Updated <= DateTime.UtcNow - TimeSpan.FromMinutes(2);
 
         var player = Utilities.GetPlayerFromSlot(slot);
 
-        Server.NextFrame(() =>
+        // A fresh check validates the player itself once the database answered; the old entry is not trusted
+        if (!refresh || player == null || !player.IsValid)
         {
-            if (player != null && player.IsValid && !player.IsBot)
-                SourceBans.Validator(player, sid64, earlyStage: true);
-            else
-                SourceBans.Validator(null, sid64, earlyStage: true);
-        });
+            Server.NextFrame(() =>
+            {
+                if (player != null && player.IsValid && !player.IsBot)
+                    SourceBans.Validator(player, sid64, earlyStage: true);
+                else
+                    SourceBans.Validator(null, sid64, earlyStage: true);
+            });
+        }
 
         _ = SourceBans.isAdmin(player ?? null, refresh);
     }

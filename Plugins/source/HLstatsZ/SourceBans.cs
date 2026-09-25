@@ -380,6 +380,14 @@ public class SourceBans
                 }
             }
 
+            // A vote kick only lives in this cache: a fresh check keeps it until it runs out
+            if (_userCache.TryGetValue(sid64, out var previous) && (previous.Ban & BanType.Kick) != 0 && previous.ExpiryBan > now)
+            {
+                hasBan |= BanType.Kick;
+                if (previous.ExpiryBan > endBan)
+                    endBan = previous.ExpiryBan;
+            }
+
             _userCache[sid64] = (playerName, isAdmin, aid, ipAddr, flags, DateTime.UtcNow,
                                  hasBan, endBan, endMute, endGag,
                                  durationBan, durationMute, durationGag,
@@ -1311,7 +1319,13 @@ public class SourceBans
 
     public static async Task Refresh()
     {
-        _userCache.Clear();
+        // Start again from the database, but keep the vote kicks: they only live in this cache
+        DateTime now = DateTime.UtcNow;
+        foreach (var entry in _userCache)
+        {
+            if ((entry.Value.Ban & BanType.Kick) == 0 || entry.Value.ExpiryBan <= now)
+                _userCache.TryRemove(entry.Key, out _);
+        }
         var players = Utilities.GetPlayers()
             .Where(p => p?.IsValid == true && p?.IsBot == false)
             .ToList();
